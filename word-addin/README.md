@@ -60,9 +60,9 @@ Because of this architecture, Lattice Scholar must be running whenever Word need
 Download the release package first:
 
 - Release page:
-  `https://github.com/stringer07/Lattice_release/releases/tag/word-addin-v1.0.0.0`
+  `https://github.com/stringer07/Lattice_extension/releases/tag/word-addin-v1.0.0.0`
 - Direct zip download:
-  `https://github.com/stringer07/Lattice_release/releases/download/word-addin-v1.0.0.0/Lattice-Word-Addin-macOS-1.0.0.0.zip`
+  `https://github.com/stringer07/Lattice_extension/releases/download/word-addin-v1.0.0.0/Lattice-Word-Addin-macOS-1.0.0.0.zip`
 
 Installation steps:
 

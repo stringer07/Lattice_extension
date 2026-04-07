@@ -60,9 +60,9 @@
 先下载发布包：
 
 - Release 页面：
-  `https://github.com/stringer07/Lattice_release/releases/tag/word-addin-v1.0.0.0`
+  `https://github.com/stringer07/Lattice_extension/releases/tag/word-addin-v1.0.0.0`
 - 当前 zip 直链：
-  `https://github.com/stringer07/Lattice_release/releases/download/word-addin-v1.0.0.0/Lattice-Word-Addin-macOS-1.0.0.0.zip`
+  `https://github.com/stringer07/Lattice_extension/releases/download/word-addin-v1.0.0.0/Lattice-Word-Addin-macOS-1.0.0.0.zip`
 
 安装步骤：
 
