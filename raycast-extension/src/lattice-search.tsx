@@ -30,10 +30,29 @@ interface Paper {
   cslItem: Record<string, unknown>;
 }
 
+function getBibTeXEntryType(paperType: string): string {
+  switch (paperType.toLowerCase()) {
+    case "book":
+      return "book";
+    case "article":
+      return "article";
+    case "inproceedings":
+      return "inproceedings";
+    case "thesis":
+      return "phdthesis";
+    case "report":
+      return "techreport";
+    case "misc":
+      return "misc";
+    default:
+      return "misc";
+  }
+}
+
 // Convert a Paper to BibTeX string.
 // Swap this implementation for an API call when /papers/<id>/bibtex becomes available.
 function getBibTeX(paper: Paper): string {
-  const entryType = paper.paperType === "book" ? "book" : "article";
+  const entryType = getBibTeXEntryType(paper.paperType);
   const citekey = paper.citekey || "unknown";
 
   const fields: [string, string | undefined][] = [
