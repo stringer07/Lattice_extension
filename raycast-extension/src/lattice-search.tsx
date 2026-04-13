@@ -1,8 +1,9 @@
-import { Action, ActionPanel, Clipboard, Detail, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Clipboard, Detail, getPreferenceValues, List, showToast, Toast } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 import { useState } from "react";
 
-const BASE = "http://127.0.0.1:52731/api/v1";
+const { port } = getPreferenceValues<{ port: string }>();
+const BASE = `http://127.0.0.1:${port || "52731"}/api/v1`;
 
 interface SearchResult {
   id: string;
