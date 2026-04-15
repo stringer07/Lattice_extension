@@ -1,9 +1,16 @@
-import { Action, ActionPanel, Clipboard, Detail, getPreferenceValues, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Detail, getPreferenceValues, Keyboard, List, showToast, Toast } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 import { useEffect, useState } from "react";
+import { EXPORT_FORMATS, fetchAndCopyFormatted, copyFormattedPaper, Paper, ExportFormat } from "./export-formats";
 
-const { port } = getPreferenceValues<Preferences.LatticeSearch>();
+const { port, preferredFormat } = getPreferenceValues<Preferences.LatticeSearch>();
 const BASE = `http://127.0.0.1:${port || "52731"}/api/v1`;
+const PREFERRED_FORMAT: ExportFormat = (preferredFormat as ExportFormat) || "bibtex";
+
+function getFormatTitle(format: ExportFormat): string {
+  const option = EXPORT_FORMATS.find((f) => f.id === format);
+  return option?.title || "BibTeX";
+}
 
 interface SearchResult {
   id: string;
@@ -13,89 +20,6 @@ interface SearchResult {
   year: number;
   citekey: string;
   paperType: string;
-}
-
-interface Paper {
-  id: string;
-  citekey: string;
-  title: string;
-  authors: string[];
-  year: number;
-  journal: string;
-  doi: string;
-  volume: string;
-  issue: string;
-  pages: string;
-  isbn: string;
-  paperType: string;
-  cslItem: Record<string, unknown>;
-}
-
-function getBibTeXEntryType(paperType: string): string {
-  switch (paperType.toLowerCase()) {
-    case "book":
-      return "book";
-    case "article":
-      return "article";
-    case "inproceedings":
-      return "inproceedings";
-    case "thesis":
-      return "phdthesis";
-    case "report":
-      return "techreport";
-    case "misc":
-      return "misc";
-    default:
-      return "misc";
-  }
-}
-
-// Convert a Paper to BibTeX string.
-// Swap this implementation for an API call when /papers/<id>/bibtex becomes available.
-function getBibTeX(paper: Paper): string {
-  const entryType = getBibTeXEntryType(paper.paperType);
-  const citekey = paper.citekey || "unknown";
-
-  const fields: [string, string | undefined][] = [
-    ["title", paper.title],
-    ["author", paper.authors?.join(" and ")],
-    ["year", paper.year ? String(paper.year) : undefined],
-    ["journal", paper.journal],
-    ["volume", paper.volume],
-    ["number", paper.issue],
-    ["pages", paper.pages],
-    ["doi", paper.doi],
-    ["isbn", paper.isbn],
-  ];
-
-  const body = fields
-    .filter(([, v]) => v)
-    .map(([k, v]) => `  ${k} = {${v}}`)
-    .join(",\n");
-
-  return `@${entryType}{${citekey},\n${body}\n}`;
-}
-
-// Fetches full paper data on demand and copies BibTeX to clipboard.
-// Replace the fetch+getBibTeX call with a /papers/<id>/bibtex API call when available.
-function CopyBibTeXAction({ id, shortcut }: { id: string; shortcut?: Action.Props["shortcut"] }) {
-  async function handleAction() {
-    const toast = await showToast({ style: Toast.Style.Animated, title: "Fetching BibTeX…" });
-    try {
-      const res = await fetch(`${BASE}/papers/${id}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const paper: Paper = await res.json();
-      await Clipboard.copy(getBibTeX(paper));
-      toast.style = Toast.Style.Success;
-      toast.title = "BibTeX copied";
-    } catch (e) {
-      toast.style = Toast.Style.Failure;
-      toast.title = "Failed to copy BibTeX";
-      toast.message = e instanceof Error ? e.message : String(e);
-    }
-  }
-
-  return <Action title="Copy BibTeX" shortcut={shortcut} onAction={handleAction} />;
 }
 
 function PaperDetail({ id }: { id: string }) {
@@ -131,11 +55,16 @@ function PaperDetail({ id }: { id: string }) {
       actions={
         data && (
           <ActionPanel>
-            <Action.CopyToClipboard
-              title="Copy BibTeX"
-              content={getBibTeX(data)}
+            <Action
+              title={`Export to ${getFormatTitle(PREFERRED_FORMAT)} Format`}
               shortcut={{ modifiers: ["cmd"], key: "b" }}
+              onAction={() => copyFormattedPaper(data, PREFERRED_FORMAT)}
             />
+            <ActionPanel.Submenu title="Export to More Formats…" shortcut={{ modifiers: ["cmd", "shift"], key: "e" }}>
+              {EXPORT_FORMATS.map((format) => (
+                <Action key={format.id} title={format.title} onAction={() => copyFormattedPaper(data, format.id)} />
+              ))}
+            </ActionPanel.Submenu>
             <Action.CopyToClipboard
               title="Copy Citekey"
               content={data.citekey}
@@ -154,6 +83,40 @@ function PaperDetail({ id }: { id: string }) {
         )
       }
     />
+  );
+}
+
+// Fetches full paper data on demand and copies in preferred format to clipboard.
+function CopyPreferredAction({ id, shortcut }: { id: string; shortcut?: Action.Props["shortcut"] }) {
+  const formatTitle = getFormatTitle(PREFERRED_FORMAT);
+
+  async function handleAction() {
+    const toast = await showToast({ style: Toast.Style.Animated, title: `Fetching ${formatTitle}…` });
+    try {
+      const res = await fetch(`${BASE}/papers/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const paper: Paper = await res.json();
+      await copyFormattedPaper(paper, PREFERRED_FORMAT);
+      toast.style = Toast.Style.Success;
+      toast.title = `${formatTitle} copied`;
+    } catch (e) {
+      toast.style = Toast.Style.Failure;
+      toast.title = "Failed to copy";
+      toast.message = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  return <Action title={`Export to ${formatTitle} Format`} shortcut={shortcut} onAction={handleAction} />;
+}
+
+// Submenu for exporting in different formats
+function ExportFormatsAction({ id, shortcut }: { id: string; shortcut?: Keyboard.Shortcut }) {
+  return (
+    <ActionPanel.Submenu title="Export to More Formats…" shortcut={shortcut}>
+      {EXPORT_FORMATS.map((format) => (
+        <Action key={format.id} title={format.title} onAction={() => fetchAndCopyFormatted(BASE, id, format.id)} />
+      ))}
+    </ActionPanel.Submenu>
   );
 }
 
@@ -184,7 +147,8 @@ export default function Command() {
           actions={
             <ActionPanel>
               <Action title="View Details" onAction={() => setSelectedId(item.id)} />
-              <CopyBibTeXAction id={item.id} shortcut={{ modifiers: ["cmd"], key: "b" }} />
+              <CopyPreferredAction id={item.id} shortcut={{ modifiers: ["cmd"], key: "b" }} />
+              <ExportFormatsAction id={item.id} shortcut={{ modifiers: ["cmd", "shift"], key: "e" }} />
               <Action.CopyToClipboard
                 title="Copy Citekey"
                 content={item.citekey}

@@ -22,6 +22,22 @@
       "required": false,
       "default": "52731",
       "placeholder": "52731"
+    },
+    {
+      "name": "preferredFormat",
+      "title": "Preferred Export Format",
+      "description": "Default format for the quick copy action",
+      "type": "dropdown",
+      "required": false,
+      "default": "bibtex",
+      "data": [
+        { "title": "BibTeX", "value": "bibtex" },
+        { "title": "RIS", "value": "ris" },
+        { "title": "EndNote", "value": "endnote" },
+        { "title": "APA", "value": "apa" },
+        { "title": "MLA", "value": "mla" },
+        { "title": "Chicago", "value": "chicago" }
+      ]
     }
   ],
   "commands": [
