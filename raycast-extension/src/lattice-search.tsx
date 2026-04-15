@@ -5,7 +5,15 @@ import { EXPORT_FORMATS, fetchAndCopyFormatted, copyFormattedPaper, Paper, Expor
 
 const { port, preferredFormat } = getPreferenceValues<Preferences.LatticeSearch>();
 const BASE = `http://127.0.0.1:${port || "52731"}/api/v1`;
-const PREFERRED_FORMAT: ExportFormat = (preferredFormat as ExportFormat) || "bibtex";
+
+function validatePreferredFormat(value: unknown): ExportFormat {
+  if (typeof value === "string" && EXPORT_FORMATS.some((f) => f.id === value)) {
+    return value as ExportFormat;
+  }
+  return "bibtex";
+}
+
+const PREFERRED_FORMAT: ExportFormat = validatePreferredFormat(preferredFormat);
 
 function getFormatTitle(format: ExportFormat): string {
   const option = EXPORT_FORMATS.find((f) => f.id === format);
@@ -57,10 +65,10 @@ function PaperDetail({ id }: { id: string }) {
           <ActionPanel>
             <Action
               title={`Export to ${getFormatTitle(PREFERRED_FORMAT)} Format`}
-              shortcut={{ modifiers: ["cmd"], key: "b" }}
+              shortcut={{ modifiers: ["cmd"], key: "c" }}
               onAction={() => copyFormattedPaper(data, PREFERRED_FORMAT)}
             />
-            <ActionPanel.Submenu title="Export to More Formats…" shortcut={{ modifiers: ["cmd", "shift"], key: "e" }}>
+            <ActionPanel.Submenu title="Export to More Formats…" shortcut={{ modifiers: ["opt", "cmd"], key: "c" }}>
               {EXPORT_FORMATS.map((format) => (
                 <Action key={format.id} title={format.title} onAction={() => copyFormattedPaper(data, format.id)} />
               ))}
@@ -147,8 +155,8 @@ export default function Command() {
           actions={
             <ActionPanel>
               <Action title="View Details" onAction={() => setSelectedId(item.id)} />
-              <CopyPreferredAction id={item.id} shortcut={{ modifiers: ["cmd"], key: "b" }} />
-              <ExportFormatsAction id={item.id} shortcut={{ modifiers: ["cmd", "shift"], key: "e" }} />
+              <CopyPreferredAction id={item.id} shortcut={{ modifiers: ["cmd"], key: "c" }} />
+              <ExportFormatsAction id={item.id} shortcut={{ modifiers: ["opt", "cmd"], key: "c" }} />
               <Action.CopyToClipboard
                 title="Copy Citekey"
                 content={item.citekey}

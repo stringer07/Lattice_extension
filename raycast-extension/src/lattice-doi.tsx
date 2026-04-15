@@ -23,7 +23,7 @@ async function detectDoi(): Promise<string | null> {
   // 2. Fallback: scan page text content
   const content = await BrowserExtension.getContent({ format: "text" });
   const match = content.match(DOI_REGEX);
-  return match ? match[1].replace(/[.,;:]+$/, "") : null;
+  return match ? match[1].replace(/[.,;:)\]}]+$/, "") : null;
 }
 
 function buildMarkdown(meta: PaperMeta, doi: string): string {

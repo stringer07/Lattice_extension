@@ -226,8 +226,11 @@ export function formatChicago(paper: Paper): string {
   let citation = `${authors}. "${title}."`;
 
   if (journal) {
-    citation += ` *${journal}* ${volume}`;
-    if (issue) citation += `, no. ${issue}`;
+    citation += ` *${journal}*`;
+    if (volume) {
+      citation += ` ${volume}`;
+      if (issue) citation += `, no. ${issue}`;
+    }
     citation += ` (${year})`;
     if (pages) citation += `: ${pages}`;
     citation += ".";
