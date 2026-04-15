@@ -79,7 +79,13 @@ export default function Command() {
   }
 
   if (state.phase === "no-doi") {
-    return <Detail markdown="## No DOI Found\n\nNo DOI was detected on the current browser page." />;
+    return (
+      <Detail
+        markdown={`## No DOI Found
+
+No DOI was detected on the current browser page.`}
+      />
+    );
   }
 
   // phase === "done"

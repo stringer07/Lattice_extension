@@ -9,6 +9,7 @@
 - **即时搜索** — 边输入边搜索，实时检索整个文献库
 - **完整引用信息** — 作者、期刊、DOI、年份等一览无余
 - **快捷复制** — 一键复制 citekey、标题、DOI 或完整 BibTeX
+- **DOI 识别** — 从当前浏览器页面提取论文元数据（支持 CrossRef 和 arXiv）
 
 ## 截图
 
@@ -33,9 +34,20 @@
 
 ## 使用方法
 
-1. 打开 Raycast，运行 **Lattice Search**
+### 搜索文献
+
+1. 打开 Raycast，运行 **Search Literature**
 2. 输入标题、作者或关键词的任意部分
 3. 按 `↵` 进入详情页，或通过操作面板（`⌘ K`）复制引用数据
+
+### 识别当前页面论文
+
+1. 在浏览器中打开论文页面（arXiv、期刊网站等）
+2. 在 Raycast 中运行 **Find Paper by Current Page**
+3. 命令会自动从页面 URL 或内容中识别 DOI 并显示论文元数据
+4. 复制 DOI、引用信息，或在 doi.org 打开论文
+
+使用前提：[Raycast Browser Extension](https://www.raycast.com/browser-extension)
 
 ## 技巧：别名与快捷键
 

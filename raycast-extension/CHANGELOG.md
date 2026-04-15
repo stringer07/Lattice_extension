@@ -1,5 +1,12 @@
 # Lattice Scholar Changelog
 
+## [0.3.0] - 2026-04-15
+
+### Added
+
+- **Find Paper by Current Page** command (`lattice-doi`) — detects DOI from the active browser tab and fetches paper metadata from CrossRef or arXiv
+- New `metadata` module for DOI resolution with support for CrossRef and arXiv APIs
+
 ## [0.2.0] - 2026-04-13
 
 ### Added

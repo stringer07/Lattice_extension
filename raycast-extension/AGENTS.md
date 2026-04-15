@@ -17,6 +17,10 @@ This is a [Raycast](https://developers.raycast.com/) extension built with React 
 
 - `src/lattice-search.tsx` — `lattice-search` command: live search with paper detail view and clipboard actions.
 - `src/lattice-status.tsx` — `lattice-status` command: health check showing API/app version and capabilities.
+- `src/lattice-doi.tsx` — `lattice-doi` command: detect DOI from current browser page and fetch metadata via CrossRef/arXiv.
+- `src/metadata.ts` — Metadata fetcher for DOI resolution (CrossRef + arXiv APIs).
+- `src/lattice-doi.tsx` — `lattice-doi` command: detect DOI from current browser page and fetch metadata via CrossRef/arXiv.
+- `src/metadata.ts` — Metadata fetcher for DOI resolution (CrossRef + arXiv APIs).
 - `package.json` `"commands"` array declares all commands; adding a new command requires both a new entry there and a corresponding file in `src/`.
 - Raycast API components (`List`, `Detail`, `Form`, `Action`, etc.) come from `@raycast/api`. Utilities like `useFetch`, `useLocalStorage` come from `@raycast/utils`.
 

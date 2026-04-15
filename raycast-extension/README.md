@@ -9,6 +9,7 @@ Search your [Lattice](https://stringer07.github.io/Lattice_release/) literature 
 - **Instant search** across your entire Lattice library as you type
 - **Full citation details** — authors, journal, DOI, year, and more
 - **Copy actions** — copy citekey, title, DOI, or full BibTeX with one keystroke
+- **DOI detection** — extract paper metadata from the current browser page via CrossRef or arXiv
 
 ## Screenshots
 
@@ -33,9 +34,20 @@ Open Raycast Preferences (`⌘ ,` → Extensions → Lattice Scholar Extension) 
 
 ## Usage
 
-1. Open Raycast and run **Lattice Search**
+### Search Literature
+
+1. Open Raycast and run **Search Literature**
 2. Type any part of a title, author, or keyword
 3. Press `↵` to open the detail view, or use the action panel (`⌘ K`) to copy citation data
+
+### Find Paper by Current Page
+
+1. Open a paper page in your browser (arXiv, journal site, etc.)
+2. Run **Find Paper by Current Page** in Raycast
+3. The command detects the DOI from the page URL or content and displays paper metadata
+4. Copy the DOI, citation, or open the paper at doi.org
+
+Requirements: [Raycast Browser Extension](https://www.raycast.com/browser-extension)
 
 ## Tips: Alias & Hotkey
 

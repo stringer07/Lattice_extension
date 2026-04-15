@@ -29,8 +29,7 @@ async function fetchCrossRef(doi: string): Promise<PaperMeta | null> {
   const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
   if (!res.ok) return null;
   const { message }: { message: CrossRefWork } = await res.json();
-  const dateParts =
-    message["published-print"]?.["date-parts"]?.[0] ?? message["published-online"]?.["date-parts"]?.[0];
+  const dateParts = message["published-print"]?.["date-parts"]?.[0] ?? message["published-online"]?.["date-parts"]?.[0];
   return {
     title: message.title?.[0] ?? "Unknown Title",
     authors: message.author?.map((a) => [a.family, a.given].filter(Boolean).join(", ")).join("; ") ?? "",
