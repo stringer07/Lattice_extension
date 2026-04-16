@@ -1,7 +1,8 @@
 import { Action, ActionPanel, Detail, getPreferenceValues, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 import { useEffect, useState } from "react";
-import { EXPORT_FORMATS, fetchAndCopyFormatted, copyFormattedPaper, Paper, ExportFormat } from "./export-formats";
+import { EXPORT_FORMATS, Paper, ExportFormat } from "./export-formats";
+import { fetchAndCopyFormatted, copyFormattedPaper } from "./export-clipboard";
 
 const { port, preferredFormat } = getPreferenceValues<Preferences.LatticeSearch>();
 const BASE = `http://127.0.0.1:${port || "52731"}/api/v1`;

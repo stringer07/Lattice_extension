@@ -25,40 +25,11 @@
     {
       "name": "preferredFormat",
       "title": "Preferred Export Format",
-      "description": "Default format for the quick copy action",
-      "type": "dropdown",
+      "description": "Default format for the quick copy action. Use a structured format like bibtex, ris, endnote, csl-json, or a CSL filename from assets/styles without the .csl suffix.",
+      "type": "textfield",
       "required": false,
       "default": "bibtex",
-      "data": [
-        {
-          "title": "BibTeX",
-          "value": "bibtex"
-        },
-        {
-          "title": "RIS",
-          "value": "ris"
-        },
-        {
-          "title": "EndNote",
-          "value": "endnote"
-        },
-        {
-          "title": "APA",
-          "value": "apa"
-        },
-        {
-          "title": "MLA",
-          "value": "mla"
-        },
-        {
-          "title": "Chicago",
-          "value": "chicago"
-        },
-        {
-          "title": "CSL-JSON",
-          "value": "csl-json"
-        }
-      ]
+      "placeholder": "bibtex"
     },
     {
       "name": "clipboardFontFamily",
@@ -105,6 +76,7 @@
   "dependencies": {
     "@citation-js/core": "^0.7.21",
     "@citation-js/plugin-bibtex": "^0.7.21",
+    "@citation-js/plugin-csl": "^0.7.22",
     "@citation-js/plugin-ris": "^0.7.21",
     "@raycast/api": "^1.104.12",
     "@raycast/utils": "^1.17.0"

@@ -4,3 +4,5 @@ declare module "@citation-js/core" {
     format(name: string, options?: Record<string, unknown>): unknown;
   }
 }
+
+declare module "@citation-js/plugin-csl";
