@@ -8,9 +8,11 @@
 
 - **即时搜索** — 边输入边搜索，实时检索整个文献库
 - **完整引用信息** — 作者、期刊、DOI、年份等一览无余
-- **多格式导出** — 支持 BibTeX、RIS、APA、MLA、Chicago、EndNote 等多种引用格式
-- **快速复制** — 使用 `⌘ B` 一键复制首选格式
+- **灵活导出引用** — 支持 BibTeX、RIS、EndNote、CSL-JSON，以及任意已打包的 CSL 引用样式
+- **快速复制** — 使用 `⌘ C` 一键复制首选格式
+- **富文本剪贴板导出** — 可为 Word 等场景配置字体和字号
 - **DOI 识别** — 从当前浏览器页面提取论文元数据（支持 CrossRef 和 arXiv）
+- **连接检查** — 快速确认 Raycast 是否能访问 Lattice 本地 API
 
 ## 截图
 
@@ -30,7 +32,9 @@
 在 Raycast 偏好设置（`⌘ ,` → 扩展 → Lattice Scholar Extension）中可进行配置：
 
 - **API Port** — Lattice 本地 API 的端口号（默认：`52731`）
-- **Preferred Export Format** — 快速复制操作的默认格式（BibTeX、RIS、APA、MLA、Chicago、EndNote）
+- **Preferred Export Format** — 快速复制动作的默认格式。支持 `bibtex`、`ris`、`endnote`、`csl-json`，以及 `assets/styles` 中打包的任意 CSL 样式
+- **Clipboard Font Family** — 富文本引用导出时使用的字体
+- **Clipboard Font Size** — 富文本引用导出时使用的字号（pt）
 
 ![偏好设置](assets/preferences.png)
 
@@ -44,9 +48,15 @@
 
 **搜索结果中的快捷键：**
 - `⌘ C` — 以首选格式复制引用（可在偏好设置中配置）
-- `⌃ ⌘ C` — 导出为更多格式（BibTeX、RIS、APA、MLA、Chicago、EndNote）
+- `⌃ ⌘ C` — 导出为更多格式
+- `⌘ ⇧ C` — 复制 citekey
+
+**文献详情页中的快捷操作：**
+- `⌘ C` — 以首选格式复制引用
+- `⌃ ⌘ C` — 导出为更多格式
 - `⌘ ⇧ C` — 复制 citekey
 - `⌘ O` — 在浏览器中打开 DOI
+- `⌘ K` — 查看复制 DOI、复制标题等动作
 
 ### 识别当前页面论文
 
@@ -56,6 +66,14 @@
 4. 复制 DOI、引用信息，或在 doi.org 打开论文
 
 使用前提：[Raycast Browser Extension](https://www.raycast.com/browser-extension)
+
+### 检查连接状态
+
+运行 **Check Connection** 可以确认 Lattice 桌面应用是否正在运行，以及本地 API 是否可访问。该命令会显示：
+
+- API 版本
+- 应用版本
+- 服务端返回的 capabilities
 
 ## 技巧：别名与快捷键
 

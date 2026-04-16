@@ -8,9 +8,11 @@ Search your [Lattice](https://apps.apple.com/app/lattice-reference-manager/id676
 
 - **Instant search** across your entire Lattice library as you type
 - **Full citation details** — authors, journal, DOI, year, and more
-- **Multi-format export** — copy citations in BibTeX, RIS, APA, MLA, Chicago, or EndNote format
-- **Quick copy** — copy your preferred format instantly with `⌘ B`
+- **Flexible citation export** — copy citations as BibTeX, RIS, EndNote, CSL-JSON, or any bundled CSL bibliography style
+- **Quick copy** — copy your preferred format instantly with `⌘ C`
+- **Rich-text clipboard export** — tune font family and size for Word-friendly bibliography output
 - **DOI detection** — extract paper metadata from the current browser page via CrossRef or arXiv
+- **Connection check** — verify that the local Lattice API is reachable from Raycast
 
 ## Screenshots
 
@@ -30,7 +32,9 @@ Search your [Lattice](https://apps.apple.com/app/lattice-reference-manager/id676
 Open Raycast Preferences (`⌘ ,` → Extensions → Lattice Scholar Extension) to configure:
 
 - **API Port** — port number for the Lattice local API (default: `52731`)
-- **Preferred Export Format** — default format for quick copy action (BibTeX, RIS, APA, MLA, Chicago, EndNote)
+- **Preferred Export Format** — default format for the quick copy action. Supports `bibtex`, `ris`, `endnote`, `csl-json`, or any CSL style shipped in `assets/styles`
+- **Clipboard Font Family** — font family used for rich-text citation exports
+- **Clipboard Font Size** — font size in points used for rich-text citation exports
 
 ![Preferences](assets/preferences.png)
 
@@ -44,9 +48,15 @@ Open Raycast Preferences (`⌘ ,` → Extensions → Lattice Scholar Extension) 
 
 **Keyboard shortcuts in search results:**
 - `⌘ C` — Copy citation in your preferred format (configurable in preferences)
-- `⌃ ⌘ C` — Export to more formats (BibTeX, RIS, APA, MLA, Chicago, EndNote)
+- `⌃ ⌘ C` — Export to more formats
+- `⌘ ⇧ C` — Copy citekey
+
+**Actions in the paper detail view:**
+- `⌘ C` — Copy citation in your preferred format
+- `⌃ ⌘ C` — Export to more formats
 - `⌘ ⇧ C` — Copy citekey
 - `⌘ O` — Open DOI in browser
+- `⌘ K` — Access copy DOI and copy title actions
 
 ### Find Paper by Current Page
 
@@ -56,6 +66,14 @@ Open Raycast Preferences (`⌘ ,` → Extensions → Lattice Scholar Extension) 
 4. Copy the DOI, citation, or open the paper at doi.org
 
 Requirements: [Raycast Browser Extension](https://www.raycast.com/browser-extension)
+
+### Check Connection
+
+Run **Check Connection** to confirm that the Lattice desktop app is running and the local API is reachable. This command displays:
+
+- API version
+- App version
+- Reported server capabilities
 
 ## Tips: Alias & Hotkey
 
