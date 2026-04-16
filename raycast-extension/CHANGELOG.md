@@ -14,10 +14,10 @@
 
 ### Added
 
-- **Multi-format citation export** — copy citations in BibTeX, RIS, EndNote, APA, MLA, or Chicago format
+- **Multi-format citation export** — copy citations in BibTeX, RIS, APA, MLA, or Chicago format
 - **Configurable preferred format** — set your default export format in extension preferences
-- Quick copy with `⌘ B` now uses your preferred format instead of always BibTeX
-- `⌘ ⇧ E` shortcut to access "Export to More Formats..." submenu
+- Quick copy with `⌘ C` now uses your preferred format instead of always BibTeX
+- `⌃ ⌘ C` shortcut to access "Export to More Formats..." submenu
 
 ## [0.3.0] - 2026-04-15
 
