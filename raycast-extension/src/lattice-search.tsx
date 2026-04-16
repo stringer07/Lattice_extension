@@ -141,7 +141,6 @@ export default function Command() {
   const { data, isLoading, error } = useFetch<{ papers: SearchResult[] }>(
     `${BASE}/search?q=${encodeURIComponent(query)}&limit=50`,
     {
-      execute: query.length > 0,
       keepPreviousData: true,
     },
   );

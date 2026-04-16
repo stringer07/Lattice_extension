@@ -15,6 +15,7 @@ export interface PaperMeta {
 interface CrossRefWork {
   title: string[];
   author?: { given?: string; family: string }[];
+  issued?: { "date-parts": number[][] };
   "published-print"?: { "date-parts": number[][] };
   "published-online"?: { "date-parts": number[][] };
   "container-title"?: string[];
@@ -29,7 +30,10 @@ async function fetchCrossRef(doi: string): Promise<PaperMeta | null> {
   const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(doi)}`);
   if (!res.ok) return null;
   const { message }: { message: CrossRefWork } = await res.json();
-  const dateParts = message["published-print"]?.["date-parts"]?.[0] ?? message["published-online"]?.["date-parts"]?.[0];
+  const dateParts =
+    message.issued?.["date-parts"]?.[0] ??
+    message["published-print"]?.["date-parts"]?.[0] ??
+    message["published-online"]?.["date-parts"]?.[0];
   return {
     title: message.title?.[0] ?? "Unknown Title",
     authors: message.author?.map((a) => [a.family, a.given].filter(Boolean).join(", ")).join("; ") ?? "",

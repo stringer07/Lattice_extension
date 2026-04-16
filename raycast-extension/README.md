@@ -8,7 +8,7 @@ Search your [Lattice](https://apps.apple.com/app/lattice-reference-manager/id676
 
 - **Instant search** across your entire Lattice library as you type
 - **Full citation details** — authors, journal, DOI, year, and more
-- **Flexible citation export** — copy citations as BibTeX, RIS, EndNote, CSL-JSON, or any bundled CSL bibliography style
+- **Flexible citation export** — copy citations as BibTeX, RIS, CSL-JSON, or any bundled CSL bibliography style
 - **Quick copy** — copy your preferred format instantly with `⌘ C`
 - **Rich-text clipboard export** — tune font family and size for Word-friendly bibliography output
 - **DOI detection** — extract paper metadata from the current browser page via CrossRef or arXiv
@@ -32,7 +32,7 @@ Search your [Lattice](https://apps.apple.com/app/lattice-reference-manager/id676
 Open Raycast Preferences (`⌘ ,` → Extensions → Lattice Scholar Extension) to configure:
 
 - **API Port** — port number for the Lattice local API (default: `52731`)
-- **Preferred Export Format** — default format for the quick copy action. Supports `bibtex`, `ris`, `endnote`, `csl-json`, or any CSL style shipped in `assets/styles`
+- **Preferred Export Format** — default format for the quick copy action. Supports `bibtex`, `ris`, `csl-json`, or any CSL style shipped in `assets/styles`
 - **Clipboard Font Family** — font family used for rich-text citation exports
 - **Clipboard Font Size** — font size in points used for rich-text citation exports
 

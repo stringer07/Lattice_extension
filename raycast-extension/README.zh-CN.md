@@ -8,7 +8,7 @@
 
 - **即时搜索** — 边输入边搜索，实时检索整个文献库
 - **完整引用信息** — 作者、期刊、DOI、年份等一览无余
-- **灵活导出引用** — 支持 BibTeX、RIS、EndNote、CSL-JSON，以及任意已打包的 CSL 引用样式
+- **灵活导出引用** — 支持 BibTeX、RIS、CSL-JSON，以及任意已打包的 CSL 引用样式
 - **快速复制** — 使用 `⌘ C` 一键复制首选格式
 - **富文本剪贴板导出** — 可为 Word 等场景配置字体和字号
 - **DOI 识别** — 从当前浏览器页面提取论文元数据（支持 CrossRef 和 arXiv）
@@ -32,7 +32,7 @@
 在 Raycast 偏好设置（`⌘ ,` → 扩展 → Lattice Scholar Extension）中可进行配置：
 
 - **API Port** — Lattice 本地 API 的端口号（默认：`52731`）
-- **Preferred Export Format** — 快速复制动作的默认格式。支持 `bibtex`、`ris`、`endnote`、`csl-json`，以及 `assets/styles` 中打包的任意 CSL 样式
+- **Preferred Export Format** — 快速复制动作的默认格式。支持 `bibtex`、`ris`、`csl-json`，以及 `assets/styles` 中打包的任意 CSL 样式
 - **Clipboard Font Family** — 富文本引用导出时使用的字体
 - **Clipboard Font Size** — 富文本引用导出时使用的字号（pt）
 

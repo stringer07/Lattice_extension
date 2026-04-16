@@ -25,7 +25,7 @@
     {
       "name": "preferredFormat",
       "title": "Preferred Export Format",
-      "description": "Default format for the quick copy action. Use a structured format like bibtex, ris, endnote, csl-json, or a CSL filename from assets/styles without the .csl suffix.",
+      "description": "Default format for the quick copy action. Use a structured format like bibtex, ris, csl-json, or a CSL filename from assets/styles without the .csl suffix.",
       "type": "textfield",
       "required": false,
       "default": "bibtex",

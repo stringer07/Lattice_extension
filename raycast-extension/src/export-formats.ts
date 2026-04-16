@@ -30,7 +30,7 @@ export interface Paper {
   cslItem: Record<string, unknown>;
 }
 
-type StructuredFormat = "bibtex" | "ris" | "endnote" | "csl-json";
+type StructuredFormat = "bibtex" | "ris" | "csl-json";
 type RichOutput = "html" | "text";
 type CslItem = Record<string, unknown> & {
   id: string;
@@ -41,7 +41,6 @@ type CslItem = Record<string, unknown> & {
 const STRUCTURED_FORMATS: FormatOption[] = [
   { id: "bibtex", title: "BibTeX", description: "LaTeX/BibTeX format" },
   { id: "ris", title: "RIS", description: "Research Information Systems format" },
-  { id: "endnote", title: "EndNote", description: "EndNote tagged format" },
   { id: "csl-json", title: "CSL-JSON", description: "Citation Style Language JSON" },
 ];
 
@@ -78,8 +77,6 @@ export function formatPaper(paper: Paper, format: ExportFormat): string {
       return new Cite([cslItem]).format("bibtex") as string;
     case "ris":
       return new Cite([cslItem]).format("ris") as string;
-    case "endnote":
-      return formatEndNote(cslItem);
     case "csl-json":
       return JSON.stringify(cslItem, null, 2);
     default:
@@ -195,49 +192,6 @@ function registerTemplate(templateName: string, xml: string): void {
 
   citeWithPlugins.plugins?.config?.get?.("@csl")?.templates?.add?.(templateName, xml);
   registeredTemplates.add(templateName);
-}
-
-function formatEndNote(cslItem: CslItem): string {
-  const typeMap: Record<string, string> = {
-    "article-journal": "Journal Article",
-    book: "Book",
-    "paper-conference": "Conference Paper",
-    thesis: "Thesis",
-    report: "Report",
-    webpage: "Electronic Article",
-    software: "Computer Program",
-    dataset: "Data File",
-    patent: "Patent",
-    document: "Generic",
-  };
-
-  const authors = Array.isArray(cslItem.author) ? cslItem.author : [];
-  const year = extractYear(cslItem.issued);
-
-  const lines = [
-    `%0 ${typeMap[readString(cslItem.type).toLowerCase()] || "Generic"}`,
-    tagged("%T", readString(cslItem.title)),
-    ...authors.map((author) => tagged("%A", formatEndNoteAuthor(author))),
-    tagged("%D", year ? String(year) : ""),
-    tagged("%J", readString(cslItem["container-title"])),
-    tagged("%V", readString(cslItem.volume)),
-    tagged("%N", readString(cslItem.issue)),
-    tagged("%P", readString(cslItem.page)),
-    tagged("%R", readString(cslItem.DOI)),
-    tagged("%@", readString(cslItem.ISBN)),
-  ].filter(Boolean);
-
-  return lines.join("\n");
-}
-
-function formatEndNoteAuthor(author: unknown): string {
-  if (!isRecord(author)) {
-    return "";
-  }
-
-  const family = readString(author.family).trim();
-  const given = readString(author.given).trim();
-  return [family, given].filter(Boolean).join(", ");
 }
 
 function extractYear(issued: unknown): number | undefined {

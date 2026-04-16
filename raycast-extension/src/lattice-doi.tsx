@@ -6,6 +6,7 @@ type State =
   | { phase: "checking" }
   | { phase: "no-browser" }
   | { phase: "no-doi" }
+  | { phase: "detection-error"; message: string }
   | { phase: "loading"; doi: string }
   | { phase: "metadata-error"; doi: string; message: string }
   | { phase: "done"; doi: string; meta: PaperMeta | null };
@@ -69,8 +70,9 @@ export default function Command() {
           });
       })
       .catch((err) => {
-        showToast({ style: Toast.Style.Failure, title: "DOI detection failed", message: String(err) });
-        setState({ phase: "no-doi" });
+        const message = err instanceof Error ? err.message : String(err);
+        showToast({ style: Toast.Style.Failure, title: "DOI detection failed", message });
+        setState({ phase: "detection-error", message });
       });
   }, []);
 
@@ -93,6 +95,10 @@ export default function Command() {
 No DOI was detected on the current browser page.`}
       />
     );
+  }
+
+  if (state.phase === "detection-error") {
+    return <Detail markdown={`## DOI Detection Failed\n\n${state.message}`} />;
   }
 
   if (state.phase === "metadata-error") {

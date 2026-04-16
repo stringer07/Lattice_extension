@@ -1,5 +1,15 @@
 # Lattice Scholar Changelog
 
+## [0.4.1] - 2026-04-16
+
+### Changed
+
+- Search now loads recent papers on first open by calling `/search` with an empty query
+- Removed EndNote from export options and preferences
+- Improved DOI detection failures by showing a dedicated error state instead of reporting "No DOI Found"
+- Prefer `issued` when deriving publication year from CrossRef metadata
+- Synced repository guidance with the latest Local API reference
+
 ## [0.4.0] - 2026-04-15
 
 ### Added
