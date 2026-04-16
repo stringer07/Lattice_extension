@@ -7,6 +7,7 @@ type State =
   | { phase: "no-browser" }
   | { phase: "no-doi" }
   | { phase: "loading"; doi: string }
+  | { phase: "metadata-error"; doi: string; message: string }
   | { phase: "done"; doi: string; meta: PaperMeta | null };
 
 const DOI_REGEX = /\b(10\.\d{4,}\/[^\s"<>[\]{}|\\^`]+)/;
@@ -59,10 +60,16 @@ export default function Command() {
       .then((doi) => {
         if (!doi) return setState({ phase: "no-doi" });
         setState({ phase: "loading", doi });
-        return fetchMetadata(doi).then((meta) => setState({ phase: "done", doi, meta }));
+        return fetchMetadata(doi)
+          .then((meta) => setState({ phase: "done", doi, meta }))
+          .catch((err) => {
+            const message = err instanceof Error ? err.message : String(err);
+            showToast({ style: Toast.Style.Failure, title: "Failed to fetch metadata", message });
+            setState({ phase: "metadata-error", doi, message });
+          });
       })
       .catch((err) => {
-        showToast({ style: Toast.Style.Failure, title: "Error", message: String(err) });
+        showToast({ style: Toast.Style.Failure, title: "DOI detection failed", message: String(err) });
         setState({ phase: "no-doi" });
       });
   }, []);
@@ -84,6 +91,24 @@ export default function Command() {
         markdown={`## No DOI Found
 
 No DOI was detected on the current browser page.`}
+      />
+    );
+  }
+
+  if (state.phase === "metadata-error") {
+    return (
+      <Detail
+        markdown={`## DOI Detected\n\n\`${state.doi}\`\n\nMetadata lookup failed.\n\n${state.message}`}
+        actions={
+          <ActionPanel>
+            <Action.CopyToClipboard title="Copy DOI" content={state.doi} />
+            <Action.OpenInBrowser
+              title="Open in Browser"
+              url={`https://doi.org/${state.doi}`}
+              shortcut={{ modifiers: ["cmd"], key: "o" }}
+            />
+          </ActionPanel>
+        }
       />
     );
   }

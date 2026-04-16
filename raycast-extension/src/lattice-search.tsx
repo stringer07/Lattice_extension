@@ -1,4 +1,4 @@
-import { Action, ActionPanel, Detail, getPreferenceValues, Keyboard, List, showToast, Toast } from "@raycast/api";
+import { Action, ActionPanel, Detail, getPreferenceValues, Icon, Keyboard, List, showToast, Toast } from "@raycast/api";
 import { useFetch } from "@raycast/utils";
 import { useEffect, useState } from "react";
 import { EXPORT_FORMATS, fetchAndCopyFormatted, copyFormattedPaper, Paper, ExportFormat } from "./export-formats";
@@ -30,7 +30,7 @@ interface SearchResult {
   paperType: string;
 }
 
-function PaperDetail({ id }: { id: string }) {
+function PaperDetail({ id, onBack }: { id: string; onBack: () => void }) {
   const { data, isLoading, error } = useFetch<Paper>(`${BASE}/papers/${id}`);
 
   useEffect(() => {
@@ -39,56 +39,61 @@ function PaperDetail({ id }: { id: string }) {
     }
   }, [error]);
 
-  const md = data
-    ? [
-        `# ${data.title}`,
-        data.authors?.length && `**Authors:** ${data.authors.join(", ")}`,
-        data.year && `**Year:** ${data.year}`,
-        data.journal && `**Journal:** ${data.journal}`,
-        data.volume && `**Volume:** ${data.volume}`,
-        data.issue && `**Issue:** ${data.issue}`,
-        data.pages && `**Pages:** ${data.pages}`,
-        data.doi && `**DOI:** [${data.doi}](https://doi.org/${data.doi})`,
-        data.isbn && `**ISBN:** ${data.isbn}`,
-        data.citekey && `**Citekey:** \`${data.citekey}\``,
-      ]
-        .filter(Boolean)
-        .join("\n\n")
-    : "Loading…";
+  const md = error
+    ? `## Failed to Load Paper\n\nCould not load paper details from \`${BASE}/papers/${id}\`.\n\n${error.message}`
+    : data
+      ? [
+          `# ${data.title}`,
+          data.authors?.length && `**Authors:** ${data.authors.join(", ")}`,
+          data.year && `**Year:** ${data.year}`,
+          data.journal && `**Journal:** ${data.journal}`,
+          data.volume && `**Volume:** ${data.volume}`,
+          data.issue && `**Issue:** ${data.issue}`,
+          data.pages && `**Pages:** ${data.pages}`,
+          data.doi && `**DOI:** [${data.doi}](https://doi.org/${data.doi})`,
+          data.isbn && `**ISBN:** ${data.isbn}`,
+          data.citekey && `**Citekey:** \`${data.citekey}\``,
+        ]
+          .filter(Boolean)
+          .join("\n\n")
+      : "Loading…";
 
   return (
     <Detail
       isLoading={isLoading}
       markdown={md}
       actions={
-        data && (
-          <ActionPanel>
-            <Action
-              title={`Export to ${getFormatTitle(PREFERRED_FORMAT)} Format`}
-              shortcut={{ modifiers: ["cmd"], key: "c" }}
-              onAction={() => copyFormattedPaper(data, PREFERRED_FORMAT)}
-            />
-            <ActionPanel.Submenu title="Export to More Formats…" shortcut={{ modifiers: ["ctrl", "cmd"], key: "c" }}>
-              {EXPORT_FORMATS.map((format) => (
-                <Action key={format.id} title={format.title} onAction={() => copyFormattedPaper(data, format.id)} />
-              ))}
-            </ActionPanel.Submenu>
-            <Action.CopyToClipboard
-              title="Copy Citekey"
-              content={data.citekey}
-              shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
-            />
-            {data.doi && (
-              <Action.OpenInBrowser
-                title="Open DOI in Browser"
-                url={`https://doi.org/${data.doi}`}
-                shortcut={{ modifiers: ["cmd"], key: "o" }}
+        <ActionPanel>
+          <Action title="Back to Results" icon={Icon.ArrowLeft} onAction={onBack} />
+          {data && (
+            <>
+              <Action
+                title={`Export to ${getFormatTitle(PREFERRED_FORMAT)} Format`}
+                shortcut={{ modifiers: ["cmd"], key: "c" }}
+                onAction={() => copyFormattedPaper(data, PREFERRED_FORMAT)}
               />
-            )}
-            {data.doi && <Action.CopyToClipboard title="Copy DOI" content={data.doi} />}
-            <Action.CopyToClipboard title="Copy Title" content={data.title} />
-          </ActionPanel>
-        )
+              <ActionPanel.Submenu title="Export to More Formats…" shortcut={{ modifiers: ["ctrl", "cmd"], key: "c" }}>
+                {EXPORT_FORMATS.map((format) => (
+                  <Action key={format.id} title={format.title} onAction={() => copyFormattedPaper(data, format.id)} />
+                ))}
+              </ActionPanel.Submenu>
+              <Action.CopyToClipboard
+                title="Copy Citekey"
+                content={data.citekey}
+                shortcut={{ modifiers: ["cmd", "shift"], key: "c" }}
+              />
+              {data.doi && (
+                <Action.OpenInBrowser
+                  title="Open DOI in Browser"
+                  url={`https://doi.org/${data.doi}`}
+                  shortcut={{ modifiers: ["cmd"], key: "o" }}
+                />
+              )}
+              {data.doi && <Action.CopyToClipboard title="Copy DOI" content={data.doi} />}
+              <Action.CopyToClipboard title="Copy Title" content={data.title} />
+            </>
+          )}
+        </ActionPanel>
       }
     />
   );
@@ -132,7 +137,7 @@ export default function Command() {
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const { data, isLoading } = useFetch<{ papers: SearchResult[] }>(
+  const { data, isLoading, error } = useFetch<{ papers: SearchResult[] }>(
     `${BASE}/search?q=${encodeURIComponent(query)}&limit=50`,
     {
       execute: query.length > 0,
@@ -140,12 +145,25 @@ export default function Command() {
     },
   );
 
+  useEffect(() => {
+    if (error) {
+      showToast({ style: Toast.Style.Failure, title: "Search failed", message: error.message });
+    }
+  }, [error]);
+
   if (selectedId) {
-    return <PaperDetail id={selectedId} />;
+    return <PaperDetail id={selectedId} onBack={() => setSelectedId(null)} />;
   }
 
   return (
     <List isLoading={isLoading} searchBarPlaceholder="Search literature…" onSearchTextChange={setQuery} throttle>
+      {query.length > 0 && error ? (
+        <List.EmptyView
+          title="Search failed"
+          description={`Could not reach ${BASE}. Check that Lattice is running and the API port is correct.`}
+          icon={Icon.ExclamationMark}
+        />
+      ) : null}
       {(data?.papers ?? []).map((item) => (
         <List.Item
           key={item.id}
