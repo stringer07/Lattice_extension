@@ -22,6 +22,10 @@ export const EXPORT_FORMATS: FormatOption[] = [
   { id: "csl-json", title: "CSL-JSON", description: "Citation Style Language JSON" },
 ];
 
+const exportFormatTitles: Record<ExportFormat, string> = Object.fromEntries(
+  EXPORT_FORMATS.map((format) => [format.id, format.title]),
+) as Record<ExportFormat, string>;
+
 // Paper interface matching the API response
 export interface Paper {
   id: string;
@@ -118,16 +122,29 @@ function paperToCSL(paper: Paper): Record<string, unknown> {
   return csl;
 }
 
-const richTextFormats: ExportFormat[] = ["apa", "mla", "chicago"];
+const richTextFormats: RichTextFormat[] = ["apa", "mla", "chicago"];
 type RichTextFormat = Extract<ExportFormat, "apa" | "mla" | "chicago">;
+type RichOutputKind = "html" | "text";
+type PersonName = { given: string; family: string };
+type RichCitationFormatter = (paper: Paper, kind: RichOutputKind) => string;
 
 interface ExportPreferences {
   clipboardFontFamily?: string;
   clipboardFontSize?: string;
 }
 
+const richCitationFormatters: Record<RichTextFormat, RichCitationFormatter> = {
+  apa: formatApaCitation,
+  mla: formatMlaCitation,
+  chicago: formatChicagoCitation,
+};
+
 // Main export function that formats paper based on selected format
 export function formatPaper(paper: Paper, format: ExportFormat): string {
+  if (isRichTextFormat(format)) {
+    return formatRichCitation(paper, format, "text");
+  }
+
   const cslData = paperToCSL(paper);
   const cite = new Cite(cslData);
 
@@ -145,11 +162,6 @@ export function formatPaper(paper: Paper, format: ExportFormat): string {
     case "csl-json":
       return JSON.stringify(cslData, null, 2);
 
-    case "apa":
-    case "mla":
-    case "chicago":
-      return formatRichCitation(paper, format, "text");
-
     default:
       return cite.format("bibtex") as string;
   }
@@ -166,21 +178,16 @@ function buildClipboardContent(paper: Paper, format: ExportFormat): string | Cli
   };
 }
 
-type RichOutputKind = "html" | "text";
-
 function isRichTextFormat(format: ExportFormat): format is RichTextFormat {
-  return richTextFormats.includes(format);
+  return (richTextFormats as readonly string[]).includes(format);
+}
+
+function isRichTextTemplate(template: string): template is RichTextFormat {
+  return richTextFormats.includes(template as RichTextFormat);
 }
 
 function formatRichCitation(paper: Paper, format: RichTextFormat, kind: RichOutputKind): string {
-  switch (format) {
-    case "apa":
-      return formatApaCitation(paper, kind);
-    case "mla":
-      return formatMlaCitation(paper, kind);
-    case "chicago":
-      return formatChicagoCitation(paper, kind);
-  }
+  return richCitationFormatters[format](paper, kind);
 }
 
 function formatApaCitation(paper: Paper, kind: RichOutputKind): string {
@@ -224,7 +231,7 @@ function formatChicagoCitation(paper: Paper, kind: RichOutputKind): string {
   return joinSegments([authors, year, title, journal, doi]);
 }
 
-function formatAuthors(authors: string[] | undefined, style: "apa" | "mla" | "chicago"): string | undefined {
+function formatAuthors(authors: string[] | undefined, style: RichTextFormat): string | undefined {
   if (!authors || authors.length === 0) {
     return undefined;
   }
@@ -241,7 +248,7 @@ function formatAuthors(authors: string[] | undefined, style: "apa" | "mla" | "ch
   }
 }
 
-function parsePersonName(name: string): { given: string; family: string } {
+function parsePersonName(name: string): PersonName {
   const parsed = parseAuthor(name);
   return {
     given: parsed.given.trim(),
@@ -249,7 +256,7 @@ function parsePersonName(name: string): { given: string; family: string } {
   };
 }
 
-function formatApaAuthors(authors: { given: string; family: string }[]): string {
+function formatApaAuthors(authors: PersonName[]): string {
   const formatted = authors.map((author) => {
     const initials = author.given
       .split(/\s+/)
@@ -270,7 +277,7 @@ function formatApaAuthors(authors: { given: string; family: string }[]): string 
   return `${formatted.slice(0, -1).join(", ")}, & ${formatted[formatted.length - 1]}.`;
 }
 
-function formatMlaAuthors(authors: { given: string; family: string }[]): string {
+function formatMlaAuthors(authors: PersonName[]): string {
   if (authors.length === 1) {
     return `${authors[0].family}, ${authors[0].given}.`;
   }
@@ -282,7 +289,7 @@ function formatMlaAuthors(authors: { given: string; family: string }[]): string 
   return `${authors[0].family}, ${authors[0].given}, et al.`;
 }
 
-function formatChicagoAuthors(authors: { given: string; family: string }[]): string {
+function formatChicagoAuthors(authors: PersonName[]): string {
   const formatted = authors.map((author, index) =>
     index === 0 ? `${author.family}, ${author.given}` : formatFullName(author),
   );
@@ -298,7 +305,7 @@ function formatChicagoAuthors(authors: { given: string; family: string }[]): str
   return `${formatted.slice(0, -1).join(", ")}, and ${formatted[formatted.length - 1]}.`;
 }
 
-function formatFullName(author: { given: string; family: string }): string {
+function formatFullName(author: PersonName): string {
   return [author.given, author.family].filter(Boolean).join(" ");
 }
 
@@ -466,40 +473,33 @@ function formatEndNote(paper: Paper): string {
 
 // Copy formatted paper to clipboard
 export async function copyFormattedPaper(paper: Paper, format: ExportFormat): Promise<void> {
-  const toast = await showToast({
-    style: Toast.Style.Animated,
-    title: `Copying ${EXPORT_FORMATS.find((f) => f.id === format)?.title}…`,
-  });
-
-  try {
-    const content = buildClipboardContent(paper, format);
-    await Clipboard.copy(content);
-    toast.style = Toast.Style.Success;
-    toast.title = `${EXPORT_FORMATS.find((f) => f.id === format)?.title} copied`;
-  } catch (e) {
-    toast.style = Toast.Style.Failure;
-    toast.title = "Failed to copy";
-    toast.message = e instanceof Error ? e.message : String(e);
-  }
+  await copyContentToClipboard(buildClipboardContent(paper, format), format, `Copying ${getFormatTitle(format)}...`);
 }
 
 // Fetch paper and copy in selected format
 export async function fetchAndCopyFormatted(baseUrl: string, paperId: string, format: ExportFormat): Promise<void> {
+  await copyContentToClipboard(
+    fetchPaper(baseUrl, paperId).then((paper) => buildClipboardContent(paper, format)),
+    format,
+    "Fetching paper...",
+  );
+}
+
+async function copyContentToClipboard(
+  content: Clipboard.Content | string | Promise<Clipboard.Content | string>,
+  format: ExportFormat,
+  loadingTitle: string,
+): Promise<void> {
   const toast = await showToast({
     style: Toast.Style.Animated,
-    title: `Fetching paper…`,
+    title: loadingTitle,
   });
 
   try {
-    const res = await fetch(`${baseUrl}/papers/${paperId}`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const paper: Paper = await res.json();
-
-    const content = buildClipboardContent(paper, format);
-    await Clipboard.copy(content);
+    await Clipboard.copy(await content);
 
     toast.style = Toast.Style.Success;
-    toast.title = `${EXPORT_FORMATS.find((f) => f.id === format)?.title} copied`;
+    toast.title = `${getFormatTitle(format)} copied`;
   } catch (e) {
     toast.style = Toast.Style.Failure;
     toast.title = "Failed to copy";
@@ -507,14 +507,26 @@ export async function fetchAndCopyFormatted(baseUrl: string, paperId: string, fo
   }
 }
 
+async function fetchPaper(baseUrl: string, paperId: string): Promise<Paper> {
+  const res = await fetch(`${baseUrl}/papers/${paperId}`);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return (await res.json()) as Paper;
+}
+
+function getFormatTitle(format: ExportFormat): string {
+  return exportFormatTitles[format];
+}
+
 // Get list of available CSL templates (for advanced users)
 export function getAvailableTemplates(): string[] {
-  return ["apa", "mla", "chicago"];
+  return [...richTextFormats];
 }
 
 // Format paper with any CSL template
 export function formatPaperWithTemplate(paper: Paper, template: string): string {
-  if (template === "apa" || template === "mla" || template === "chicago") {
+  if (isRichTextTemplate(template)) {
     return formatRichCitation(paper, template, "html");
   }
 
