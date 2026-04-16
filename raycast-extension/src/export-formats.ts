@@ -1,6 +1,5 @@
 import { Clipboard, getPreferenceValues, showToast, Toast } from "@raycast/api";
 import { Cite } from "@citation-js/core";
-import "@citation-js/plugin-csl";
 import "@citation-js/plugin-bibtex";
 import "@citation-js/plugin-ris";
 
@@ -119,14 +118,8 @@ function paperToCSL(paper: Paper): Record<string, unknown> {
   return csl;
 }
 
-// CSL templates available in @citation-js/plugin-csl
-const cslTemplates: Record<string, string> = {
-  apa: "apa",
-  mla: "modern-language-association",
-  chicago: "chicago-author-date",
-};
-
 const richTextFormats: ExportFormat[] = ["apa", "mla", "chicago"];
+type RichTextFormat = Extract<ExportFormat, "apa" | "mla" | "chicago">;
 
 interface ExportPreferences {
   clipboardFontFamily?: string;
@@ -155,12 +148,7 @@ export function formatPaper(paper: Paper, format: ExportFormat): string {
     case "apa":
     case "mla":
     case "chicago":
-      // HTML format preserves italics/bold and is compatible with Word
-      // Word will interpret the HTML formatting when pasted
-      return cite.format("bibliography", {
-        format: "html",
-        template: cslTemplates[format],
-      }) as string;
+      return formatRichCitation(paper, format, "text");
 
     default:
       return cite.format("bibtex") as string;
@@ -168,25 +156,235 @@ export function formatPaper(paper: Paper, format: ExportFormat): string {
 }
 
 function buildClipboardContent(paper: Paper, format: ExportFormat): string | Clipboard.Content {
-  if (!richTextFormats.includes(format)) {
+  if (!isRichTextFormat(format)) {
     return formatPaper(paper, format);
   }
 
-  const cslData = paperToCSL(paper);
-  const cite = new Cite(cslData);
-  const template = cslTemplates[format];
-  const html = cite.format("bibliography", {
-    format: "html",
-    template,
-  }) as string;
-
   return {
-    html: wrapClipboardHtml(html),
-    text: cite.format("bibliography", {
-      format: "text",
-      template,
-    }) as string,
+    html: wrapClipboardHtml(formatRichCitation(paper, format, "html")),
+    text: formatRichCitation(paper, format, "text"),
   };
+}
+
+type RichOutputKind = "html" | "text";
+
+function isRichTextFormat(format: ExportFormat): format is RichTextFormat {
+  return richTextFormats.includes(format);
+}
+
+function formatRichCitation(paper: Paper, format: RichTextFormat, kind: RichOutputKind): string {
+  switch (format) {
+    case "apa":
+      return formatApaCitation(paper, kind);
+    case "mla":
+      return formatMlaCitation(paper, kind);
+    case "chicago":
+      return formatChicagoCitation(paper, kind);
+  }
+}
+
+function formatApaCitation(paper: Paper, kind: RichOutputKind): string {
+  const authors = formatAuthors(paper.authors, "apa");
+  const year = paper.year ? `(${paper.year}).` : undefined;
+  const title = formatSentence(paper.title, kind, true);
+  const journal = formatContainerSegment(paper, kind, {
+    includeYear: false,
+    issueWithLabel: false,
+    pagesWithLabel: false,
+  });
+  const doi = formatIdentifier(paper.doi, kind);
+
+  return joinSegments([authors, year, title, journal, doi]);
+}
+
+function formatMlaCitation(paper: Paper, kind: RichOutputKind): string {
+  const authors = formatAuthors(paper.authors, "mla");
+  const title = paper.title ? quoteText(paper.title, kind) : undefined;
+  const journal = formatContainerSegment(paper, kind, {
+    includeYear: true,
+    issueWithLabel: true,
+    pagesWithLabel: true,
+  });
+  const doi = formatIdentifier(paper.doi, kind);
+
+  return joinSegments([authors, title, journal, doi]);
+}
+
+function formatChicagoCitation(paper: Paper, kind: RichOutputKind): string {
+  const authors = formatAuthors(paper.authors, "chicago");
+  const year = paper.year ? `${paper.year}.` : undefined;
+  const title = paper.title ? quoteText(paper.title, kind) : undefined;
+  const journal = formatContainerSegment(paper, kind, {
+    includeYear: false,
+    issueWithLabel: true,
+    pagesWithLabel: false,
+  });
+  const doi = formatIdentifier(paper.doi, kind);
+
+  return joinSegments([authors, year, title, journal, doi]);
+}
+
+function formatAuthors(authors: string[] | undefined, style: "apa" | "mla" | "chicago"): string | undefined {
+  if (!authors || authors.length === 0) {
+    return undefined;
+  }
+
+  const parsed = authors.map(parsePersonName);
+
+  switch (style) {
+    case "apa":
+      return formatApaAuthors(parsed);
+    case "mla":
+      return formatMlaAuthors(parsed);
+    case "chicago":
+      return formatChicagoAuthors(parsed);
+  }
+}
+
+function parsePersonName(name: string): { given: string; family: string } {
+  const parsed = parseAuthor(name);
+  return {
+    given: parsed.given.trim(),
+    family: parsed.family.trim(),
+  };
+}
+
+function formatApaAuthors(authors: { given: string; family: string }[]): string {
+  const formatted = authors.map((author) => {
+    const initials = author.given
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => `${part[0]?.toUpperCase() || ""}.`)
+      .join(" ");
+    return initials ? `${author.family}, ${initials}` : author.family;
+  });
+
+  if (formatted.length === 1) {
+    return `${formatted[0]}.`;
+  }
+
+  if (formatted.length === 2) {
+    return `${formatted[0]}, & ${formatted[1]}.`;
+  }
+
+  return `${formatted.slice(0, -1).join(", ")}, & ${formatted[formatted.length - 1]}.`;
+}
+
+function formatMlaAuthors(authors: { given: string; family: string }[]): string {
+  if (authors.length === 1) {
+    return `${authors[0].family}, ${authors[0].given}.`;
+  }
+
+  if (authors.length === 2) {
+    return `${authors[0].family}, ${authors[0].given}, and ${formatFullName(authors[1])}.`;
+  }
+
+  return `${authors[0].family}, ${authors[0].given}, et al.`;
+}
+
+function formatChicagoAuthors(authors: { given: string; family: string }[]): string {
+  const formatted = authors.map((author, index) =>
+    index === 0 ? `${author.family}, ${author.given}` : formatFullName(author),
+  );
+
+  if (formatted.length === 1) {
+    return `${formatted[0]}.`;
+  }
+
+  if (formatted.length === 2) {
+    return `${formatted[0]}, and ${formatted[1]}.`;
+  }
+
+  return `${formatted.slice(0, -1).join(", ")}, and ${formatted[formatted.length - 1]}.`;
+}
+
+function formatFullName(author: { given: string; family: string }): string {
+  return [author.given, author.family].filter(Boolean).join(" ");
+}
+
+function formatSentence(value: string | undefined, kind: RichOutputKind, trailingPeriod = false): string | undefined {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const escaped = kind === "html" ? escapeHtml(normalized) : normalized;
+  if (trailingPeriod && !/[.!?]$/.test(escaped)) {
+    return `${escaped}.`;
+  }
+  return escaped;
+}
+
+function quoteText(value: string, kind: RichOutputKind): string {
+  const text = formatSentence(value, kind) || "";
+  return `"${text}"`;
+}
+
+function formatContainerSegment(
+  paper: Paper,
+  kind: RichOutputKind,
+  options: { includeYear: boolean; issueWithLabel: boolean; pagesWithLabel: boolean },
+): string | undefined {
+  const journal = normalizeWhitespace(paper.journal);
+  const volume = normalizeWhitespace(paper.volume);
+  const issue = normalizeWhitespace(paper.issue);
+  const pages = normalizeWhitespace(paper.pages);
+  const year = paper.year ? String(paper.year) : "";
+
+  const parts: string[] = [];
+
+  if (journal) {
+    const escapedJournal = kind === "html" ? `<i>${escapeHtml(journal)}</i>` : journal;
+    parts.push(escapedJournal);
+  }
+
+  if (volume) {
+    const escapedVolume = kind === "html" ? `<i>${escapeHtml(volume)}</i>` : volume;
+    parts.push(issue ? `${escapedVolume}${options.issueWithLabel ? `, no. ${issue}` : `(${issue})`}` : escapedVolume);
+  } else if (issue) {
+    parts.push(options.issueWithLabel ? `no. ${issue}` : `(${issue})`);
+  }
+
+  if (options.includeYear && year) {
+    parts.push(year);
+  }
+
+  if (pages) {
+    parts.push(options.pagesWithLabel ? `pp. ${pages}` : pages);
+  }
+
+  if (parts.length === 0) {
+    return options.includeYear && year ? `${year}.` : undefined;
+  }
+
+  const joined = parts.join(", ");
+  return /[.:!?]$/.test(joined) ? joined : `${joined}.`;
+}
+
+function formatIdentifier(value: string | undefined, kind: RichOutputKind): string | undefined {
+  const normalized = normalizeWhitespace(value);
+  if (!normalized) {
+    return undefined;
+  }
+
+  const url = `https://doi.org/${normalized}`;
+  if (kind === "html") {
+    const escapedUrl = escapeHtml(url);
+    return `<a href="${escapedUrl}">${escapedUrl}</a>`;
+  }
+  return url;
+}
+
+function joinSegments(segments: Array<string | undefined>): string {
+  return segments.filter(Boolean).join(" ");
+}
+
+function normalizeWhitespace(value: string | undefined): string {
+  return value?.trim().replace(/\s+/g, " ") || "";
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
 function wrapClipboardHtml(html: string): string {
@@ -311,29 +509,14 @@ export async function fetchAndCopyFormatted(baseUrl: string, paperId: string, fo
 
 // Get list of available CSL templates (for advanced users)
 export function getAvailableTemplates(): string[] {
-  // Common CSL templates available in the plugin
-  return [
-    "apa",
-    "modern-language-association",
-    "chicago-author-date",
-    "chicago-note-bibliography",
-    "ieee",
-    "nature",
-    "science",
-    "vancouver",
-    "harvard1",
-  ];
+  return ["apa", "mla", "chicago"];
 }
 
 // Format paper with any CSL template
 export function formatPaperWithTemplate(paper: Paper, template: string): string {
-  const cslData = paperToCSL(paper);
-  const cite = new Cite(cslData);
+  if (template === "apa" || template === "mla" || template === "chicago") {
+    return formatRichCitation(paper, template, "html");
+  }
 
-  // HTML format preserves italics/bold and is compatible with Word
-  // Word will interpret the HTML formatting when pasted
-  return cite.format("bibliography", {
-    format: "html",
-    template,
-  }) as string;
+  throw new Error(`Unsupported template: ${template}`);
 }

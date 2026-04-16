@@ -105,7 +105,6 @@
   "dependencies": {
     "@citation-js/core": "^0.7.21",
     "@citation-js/plugin-bibtex": "^0.7.21",
-    "@citation-js/plugin-csl": "^0.7.22",
     "@citation-js/plugin-ris": "^0.7.21",
     "@raycast/api": "^1.104.12",
     "@raycast/utils": "^1.17.0"

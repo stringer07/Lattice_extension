@@ -59,3 +59,12 @@ curl "http://127.0.0.1:52731/api/v1/papers/550E8400-E29B-41D4-A716-446655440000"
 - Prettier: `printWidth: 120`, double quotes.
 - TypeScript strict mode enabled.
 - JSX transform: `react-jsx` (no need to import React explicitly).
+
+## Dependency and License Policy
+
+- Keep the extension compatible with Raycast Store publishing requirements and the repository's MIT license.
+- Do not introduce dependencies with copyleft, network-copyleft, attribution-copyleft, or commercial-use restrictions without explicit approval.
+- Before adding or upgrading a dependency used in the shipped extension bundle, verify both direct and important transitive licenses.
+- Treat licenses such as `AGPL`, `GPL`, `LGPL` (when bundling risk is unclear), `CPAL`, SSPL, and similar reciprocal licenses as blocked by default for this repository.
+- Prefer permissive alternatives such as `MIT`, `BSD`, `ISC`, or `Apache-2.0`.
+- If a feature would require a risky dependency, either implement a small local formatter/helper instead or pause and document the license tradeoff before merging.
