@@ -12,8 +12,8 @@ Related documents:
 - Default address: `http://127.0.0.1:29467`
 - API prefix: `/api/v1`
 - Data format: `application/json; charset=utf-8`
-- Supported API methods: `GET`, `POST`, `OPTIONS`
-- Write access: optional, disabled by default while `Read-Only Mode` is on, and only available after the user turns `Read-Only Mode` off in `Settings → Local API`
+- Supported API methods: `GET`, `POST`, `PUT`, `OPTIONS`
+- Write access: optional, disabled by default while `Read-Only Mode` is on, and only available after the user turns `Read-Only Mode` off in `Settings → Local API`. `PUT /api/v1/papers/{uuid}/pdf` additionally requires `pdf-upload` in `/status.capabilities`
 - Plugin static hosting lives under `/plugins/{name}/...` and is not under `/api/v1`
 
 ## General Conventions
@@ -56,14 +56,16 @@ Some error payloads include extra fields:
 | Status | Meaning | Typical reason |
 | --- | --- | --- |
 | `200` | Success | The request completed normally |
-| `201` | Created | `POST /api/v1/papers` created a paper |
+| `201` | Created | `POST /api/v1/papers` created a paper, or `PUT /api/v1/papers/{uuid}/pdf` uploaded bytes |
 | `204` | No content | `OPTIONS` preflight |
-| `400` | Bad request | Invalid request format, malformed JSON, empty title, invalid UUID, or invalid `paperType` |
-| `403` | Forbidden | Non-local request or origin not allowed |
-| `404` | Not found | Unknown endpoint, missing paper, or missing plugin asset |
-| `405` | Method not allowed | Unsupported method such as `PUT`, `PATCH`, or `DELETE` |
-| `409` | Conflict | Duplicate paper was detected during creation |
+| `400` | Bad request | Invalid request format, malformed JSON, empty title, invalid `paperType`, invalid `strategy`, missing metadata lookup query, or invalid PDF request shape |
+| `403` | Forbidden | Non-local request, origin not allowed, or public write access is still read-only |
+| `404` | Not found | Unknown endpoint, missing paper, failed metadata lookup, or missing plugin asset |
+| `405` | Method not allowed | Unsupported method such as `PATCH` or `DELETE`, or a method/path combination the API does not implement |
+| `409` | Conflict | Duplicate paper was detected during create, or a PDF is already attached and upload was not forced |
 | `422` | Unprocessable Content | Free-tier paper limit was reached |
+| `413` | Payload too large | Request body exceeded the configured size limit |
+| `503` | Service unavailable | PDF upload was requested but no usable upload destination is configured |
 | `500` | Internal server error | Lattice failed to process the request |
 
 ## Capability Detection
@@ -73,6 +75,8 @@ Use `GET /api/v1/status` before relying on optional behavior.
 In particular:
 
 - treat `create-paper` in `capabilities` as the source of truth for whether `POST /api/v1/papers` is usable
+- treat `create-paper-v2` as the signal that duplicate strategy and rich create/replace responses are supported
+- treat `pdf-upload` as the source of truth for whether `PUT /api/v1/papers/{uuid}/pdf` is usable
 - do not assume write access is enabled on every machine
 
 ## Field-by-Method Matrix
@@ -90,6 +94,9 @@ This section is the quickest way to answer two questions:
 | `apiVersion` | `apiVersion` | Local API version string |
 | `appVersion` | `appVersion` | Lattice app version string |
 | `capabilities[]` | `capabilities[]` | Capability list for the current instance |
+| `readOnly` | `readOnly` | Whether the public `/api/v1` write surface is currently read-only |
+| `baseURL` | `baseURL` | Current localhost base address |
+| `browserExtensionEnabled` | `browserExtensionEnabled` | Mirrors the Browser Extension toggle in Settings |
 
 ### Search fields
 
@@ -106,31 +113,78 @@ This section is the quickest way to answer two questions:
 | `citekey` | — | `papers[].citekey` | Search hit citation key |
 | `paperType` | — | `papers[].paperType` | Search hit paper type |
 
+### Metadata lookup fields
+
+| Field | `GET /metadata` query | `GET /metadata` response | Notes |
+| --- | --- | --- | --- |
+| `doi` | `doi` | `doi` | At least one of `doi`, `arxivId`, `isbn`, or `title` is required |
+| `arxivId` | `arxivId` | — | Lookup input only |
+| `isbn` | `isbn` | `isbn` | Can be used as both lookup input and output |
+| `title` | `title` | `title` | Can be used as both lookup input and output |
+| `authors` | — | `authors` | Semicolon-separated author string |
+| `year` | — | `year` | Resolved publication year |
+| `journal` | — | `journal` | Resolved source / venue |
+| `abstract` | — | `abstract` | Resolved abstract text |
+| `volume` | — | `volume` | Resolved volume |
+| `issue` | — | `issue` | Resolved issue |
+| `pages` | — | `pages` | Resolved pages |
+| `paperType` | — | `paperType` | Resolved paper type when available |
+
+### Collection directory fields
+
+| Field | `GET /collections` response | Notes |
+| --- | --- | --- |
+| `id` | `[].id` | Collection UUID |
+| `name` | `[].name` | Leaf collection name |
+| `path` | `[].path` | Full slash-delimited collection path |
+| `depth` | `[].depth` | Nesting depth for UI indentation |
+
+### Tag directory fields
+
+| Field | `GET /tags` response | Notes |
+| --- | --- | --- |
+| `id` | `[].id` | Tag UUID |
+| `name` | `[].name` | Tag display name |
+| `colorHex` | `[].colorHex` | Optional stored color |
+
 ### Core paper fields
 
-| Field | `GET /papers/{uuid}` response | `POST /papers` request | `POST /papers` response | Notes |
-| --- | --- | --- | --- | --- |
-| `id` | `id` | — | `id` | Stable paper UUID; can be used to synthesize `lattice://paper/{id}` |
-| `citekey` | `citekey` | — | — | Read-only citation key |
-| `title` | `title` | `title` | `title` | Present in read and write flows |
-| `authors` | `authors[]` | `authors` | `authors` | Detail uses `string[]`; write request/response use a semicolon-separated string |
-| `year` | `year` | `year` | `year` | Shared core field |
-| `journal` | `journal` | `journal` | — | Accepted on create, returned on detail, not echoed by create response |
-| `abstract` | — | `abstract` | — | Stored on create, not currently exposed by read payloads |
-| `doi` | `doi` | `doi` | `doi` | Shared core identifier |
-| `volume` | `volume` | `volume` | — | Accepted on create, returned on detail |
-| `issue` | `issue` | `issue` | — | Accepted on create, returned on detail |
-| `pages` | `pages` | `pages` | — | Accepted on create, returned on detail |
-| `isbn` | `isbn` | `isbn` | — | Accepted on create, returned on detail |
-| `paperType` | `paperType` | `paperType` | — | Accepted on create, returned on detail and search |
-| `pdfPath` | — | `pdfPath` | — | Input-only field for PDF attachment attempts |
-| `collections` | — | `collections[]` | — | Input-only case-insensitive collection-path list |
-| `tags` | — | `tags[]` | — | Input-only tag-name list |
-| `enrich` | — | `enrich` | — | Input-only background enrichment flag |
-| `pdfAttached` | — | — | `pdfAttached` | Output-only result flag for the PDF attachment attempt |
-| `enrichmentStatus` | — | — | `enrichmentStatus` | Output-only write result field: `pending` or `none` |
-| `warnings` | — | — | `warnings[]` | Output-only non-fatal write warnings |
-| `cslItem` | `cslItem` | — | — | Read-only CSL payload object |
+| Field | `GET /papers/{uuid}` response | `GET /metadata` response | `POST /papers` request | `POST /papers` response | Notes |
+| --- | --- | --- | --- | --- | --- |
+| `id` | `id` | — | — | `id` | Stable paper UUID; can be used to synthesize `lattice://paper/{id}` |
+| `citekey` | `citekey` | — | — | — | Read-only citation key |
+| `title` | `title` | `title` | `title` | `title` | Present in read and write flows |
+| `authors` | `authors[]` | `authors` | `authors` | `authors` | Detail uses `string[]`; metadata lookup and write request/response use a semicolon-separated string |
+| `year` | `year` | `year` | `year` | `year` | Shared core field |
+| `journal` | `journal` | `journal` | `journal` | — | Accepted on create, returned on detail and metadata lookup, not echoed by create response |
+| `abstract` | — | `abstract` | `abstract` | — | Stored on create and returned by metadata lookup, not currently exposed by paper-detail payloads |
+| `doi` | `doi` | `doi` | `doi` | `doi` | Shared core identifier |
+| `volume` | `volume` | `volume` | `volume` | — | Accepted on create, returned on detail and metadata lookup |
+| `issue` | `issue` | `issue` | `issue` | — | Accepted on create, returned on detail and metadata lookup |
+| `pages` | `pages` | `pages` | `pages` | — | Accepted on create, returned on detail and metadata lookup |
+| `isbn` | `isbn` | `isbn` | `isbn` | — | Accepted on create, returned on detail and metadata lookup |
+| `paperType` | `paperType` | `paperType` | `paperType` | — | Accepted on create, returned on detail, metadata lookup, and search |
+| `pdfPath` | — | — | `pdfPath` | — | Input-only field for path-based PDF attachment attempts during create |
+| `collections` | — | — | `collections[]` | — | Input-only case-insensitive collection-path list |
+| `tags` | — | — | `tags[]` | — | Input-only tag-name list |
+| `enrich` | — | — | `enrich` | — | Input-only background enrichment flag |
+| `strategy` | — | — | `strategy` | — | Duplicate strategy for create: `"skip"` or `"replace"` |
+| `pdfAttached` | — | — | — | `pdfAttached` | Whether the paper has an attached PDF after the operation |
+| `enrichmentStatus` | — | — | — | `enrichmentStatus` | Output-only write result field: `pending` or `none` |
+| `warnings` | — | — | — | `warnings[]` | Output-only non-fatal write warnings |
+| `alreadyExists` | — | — | — | `alreadyExists` | `false` for new creates, `true` when `strategy: "replace"` updated an existing paper |
+| `conflict` | — | — | — | `conflict` | Conflict summary object returned on successful replace responses |
+| `cslItem` | `cslItem` | — | — | — | Read-only CSL payload object |
+
+### PDF upload fields
+
+| Field | `PUT /papers/{uuid}/pdf` request | `PUT /papers/{uuid}/pdf` response | Notes |
+| --- | --- | --- | --- |
+| `uuid` | path segment | — | Existing paper UUID |
+| `Content-Type` | `application/pdf` | — | Required |
+| request body | raw PDF bytes | — | Must start with `%PDF-` |
+| `force` | `force=true` query | — | Optional; bypasses the existing-PDF conflict check |
+| `reason` | — | `reason` | Success payload currently returns `{ "reason": "uploaded" }` |
 
 ### CSL subfields
 
@@ -182,6 +236,9 @@ GET /api/v1/status
 | `apiVersion` | `string` | Current Local API version |
 | `appVersion` | `string` | Current Lattice app version |
 | `capabilities` | `string[]` | Supported capability list |
+| `readOnly` | `boolean` | Whether the public `/api/v1` write surface is currently read-only |
+| `baseURL` | `string` | Current localhost base URL |
+| `browserExtensionEnabled` | `boolean` | Mirrors the Browser Extension toggle in Settings |
 
 ### Current capability values
 
@@ -190,7 +247,9 @@ GET /api/v1/status
 | `search` | Paper search is available |
 | `paper-detail` | Per-paper detail fetch by paper ID is available |
 | `csl-item` | Detail payloads include CSL-JSON usable by citation engines |
+| `create-paper-v2` | The create route supports duplicate strategy and rich create/replace responses |
 | `create-paper` | `POST /api/v1/papers` is enabled for this Lattice instance |
+| `pdf-upload` | `PUT /api/v1/papers/{uuid}/pdf` is currently available |
 | `plugin-hosting` | Local plugin static hosting is available |
 
 ### Example
@@ -200,12 +259,17 @@ GET /api/v1/status
   "ok": true,
   "apiVersion": "1",
   "appVersion": "1.2.3 (456)",
+  "readOnly": false,
+  "baseURL": "http://127.0.0.1:29467",
+  "browserExtensionEnabled": true,
   "capabilities": [
     "search",
     "paper-detail",
     "csl-item",
     "plugin-hosting",
-    "create-paper"
+    "create-paper",
+    "create-paper-v2",
+    "pdf-upload"
   ]
 }
 ```
@@ -296,7 +360,7 @@ GET /api/v1/papers/{uuid}
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `uuid` | `string` | Paper UUID. Must be a valid UUID or the endpoint returns `400` |
+| `uuid` | `string` | Paper UUID. If the path segment is not a valid UUID, the request falls through to `404 Not Found` |
 
 ### Response shape
 
@@ -434,6 +498,119 @@ The current Local API does not return a dedicated `latticeURL` field, and it doe
 - Show a detailed citation card in an external tool
 - Maintain a local metadata cache inside a plugin
 
+## `GET /collections`
+
+Returns assignable collections for write-oriented clients.
+
+### Request
+
+```http
+GET /api/v1/collections
+```
+
+### Response shape
+
+```json
+[
+  {
+    "id": "550E8400-E29B-41D4-A716-446655440000",
+    "name": "Transformers",
+    "path": "Deep Learning/Transformers",
+    "depth": 1
+  }
+]
+```
+
+### Behavioral notes
+
+- the response is a top-level JSON array, not an object wrapper
+- collections are sorted by `path` using localized case-insensitive comparison
+- use `path` as the write-side identifier for `POST /api/v1/papers`
+
+## `GET /tags`
+
+Returns assignable tags for write-oriented clients.
+
+### Request
+
+```http
+GET /api/v1/tags
+```
+
+### Response shape
+
+```json
+[
+  {
+    "id": "550E8400-E29B-41D4-A716-446655440000",
+    "name": "foundational",
+    "colorHex": "#FF9500"
+  }
+]
+```
+
+### Behavioral notes
+
+- the response is a top-level JSON array, not an object wrapper
+- tags are sorted by stored `sortOrder` first and by name second
+- use `name` as the write-side identifier for `POST /api/v1/papers`
+
+## `GET /metadata`
+
+Looks up citation metadata from a lightweight identifier.
+
+### Request
+
+```http
+GET /api/v1/metadata?doi=<doi>
+GET /api/v1/metadata?arxivId=<id>
+GET /api/v1/metadata?isbn=<isbn>
+GET /api/v1/metadata?title=<title>
+```
+
+### Query parameters
+
+| Parameter | Required | Type | Description |
+| --- | --- | --- | --- |
+| `doi` | Conditionally | `string` | DOI lookup input |
+| `arxivId` | Conditionally | `string` | arXiv ID lookup input |
+| `isbn` | Conditionally | `string` | ISBN lookup input |
+| `title` | Conditionally | `string` | Title lookup input |
+
+At least one of these parameters must be present and non-empty.
+
+### Response shape
+
+```json
+{
+  "title": "Attention Is All You Need",
+  "authors": "Ashish Vaswani; Noam Shazeer; Niki Parmar",
+  "year": 2017,
+  "journal": "NeurIPS",
+  "abstract": "The dominant sequence transduction models are based on...",
+  "doi": "10.48550/arXiv.1706.03762",
+  "volume": "30",
+  "issue": null,
+  "pages": "5998-6008",
+  "isbn": null,
+  "paperType": "inproceedings"
+}
+```
+
+### Error responses
+
+| Status | Typical payload | Meaning |
+| --- | --- | --- |
+| `400` | `{"error":"Provide at least one of doi, arxivId, isbn, or title."}` | No lookup key was provided |
+| `404` | `{"error":"Not found"}` | No metadata was resolved |
+| `500` | `{"error":"Internal server error"}` | Encoding or server-side processing failed unexpectedly |
+
+### Typical uses
+
+- Prefill a create form from a DOI, arXiv ID, ISBN, or title
+- Enrich a host application's lightweight search result before the user commits a write
+- Resolve a better title / author list before deciding whether a duplicate should be skipped or replaced
+
 ## `POST /papers`
 
 Creates one paper in the library.
@@ -463,6 +640,7 @@ Creates one paper in the library.
   "pdfPath": "/Users/me/Papers/attention.pdf",
   "collections": ["Deep Learning/Transformers"],
   "tags": ["foundational", "NLP"],
+  "strategy": "skip",
   "enrich": true
 }
 ```
@@ -485,6 +663,7 @@ Creates one paper in the library.
 | `pdfPath` | No | `string \| null` | `null` | Local filesystem path to a PDF to attach. The file must exist, be a PDF, and live inside a Trusted Folder or one of its subfolders. This is an input-only field; it is not returned by `GET /papers/{uuid}` |
 | `collections` | No | `string[] \| null` | `[]` | Collection paths to assign, using existing collection paths such as `"AI/Transformers"`. Matching is case-insensitive |
 | `tags` | No | `string[] \| null` | `[]` | Tag names to attach. Existing tags are reused; missing tags are created automatically |
+| `strategy` | No | `string \| null` | `"skip"` | Duplicate handling strategy. `"skip"` returns `409` on duplicate; `"replace"` updates the existing paper and returns a success response |
 | `enrich` | No | `boolean \| null` | `false` | When `true`, Lattice queues background enrichment if the created paper has a DOI or an attached PDF |
 
 ### Request limits
@@ -518,9 +697,13 @@ Status: `201 Created`
   "doi": "10.48550/arXiv.1706.03762",
   "pdfAttached": true,
   "enrichmentStatus": "pending",
-  "warnings": ["Collection not found: Deep Learning/Missing"]
+  "warnings": ["Collection not found: Deep Learning/Missing"],
+  "alreadyExists": false,
+  "conflict": null
 }
 ```
+
+When `strategy: "replace"` updates an existing paper, the status is `200 OK` and `alreadyExists` becomes `true`.
 
 ### Successful response field reference
 
@@ -531,9 +714,11 @@ Status: `201 Created`
 | `authors` | `string \| null` | Saved authors joined with `"; "` |
 | `year` | `integer \| null` | Saved year |
 | `doi` | `string \| null` | Cleaned DOI |
-| `pdfAttached` | `boolean` | Whether the PDF bookmark attachment succeeded |
+| `pdfAttached` | `boolean` | Whether the paper has an attached PDF after the operation |
 | `enrichmentStatus` | `string` | `"pending"` when enrichment was queued, otherwise `"none"` |
 | `warnings` | `string[]` | Non-fatal issues such as unknown collections or PDF attachment failures |
+| `alreadyExists` | `boolean` | `false` for new creates, `true` when `strategy: "replace"` updated an existing paper |
+| `conflict` | `object \| null` | Conflict summary describing the matched existing paper when replace succeeded |
 
 ### Error responses
 
@@ -542,15 +727,18 @@ Status: `201 Created`
 | `400` | `{"error":"Malformed JSON"}` | Invalid JSON request body |
 | `400` | `{"error":"Title is required and must not be empty"}` | Missing or blank title |
 | `400` | `{"error":"Invalid paperType"}` | Unsupported `paperType` value |
+| `400` | `{"error":"Invalid strategy"}` | Unsupported `strategy` value |
 | `403` | `{"error":"API is in read-only mode"}` | `Read-Only Mode` is still on |
 | `404` | `{"error":"Not found"}` | Path other than `/api/v1/papers` |
-| `409` | `{"error":"Duplicate paper found","existingPaperID":"uuid"}` | Duplicate DOI or normalized title match was found |
+| `409` | `{"error":"Duplicate paper found","existingPaperID":"uuid","existingTitle":"...","conflictField":"doi","latticeURL":"lattice://paper/..."}` | Duplicate DOI or normalized title match was found while `strategy` resolved to `"skip"` |
 | `422` | `{"error":"Library limit reached","currentCount":50,"limit":50}` | Free-tier paper limit was reached |
 | `500` | `{"error":"Failed to save"}` | Save failed unexpectedly |
 
 ### Behavioral notes
 
 - Duplicate detection checks DOI first and normalized title second
+- `strategy` defaults to `"skip"`
+- `"replace"` overwrites fields the incoming request actually supplies, but preserves existing values for omitted optional fields
 - `collections` are matched against existing collection paths case-insensitively; missing collections become warnings and are not auto-created
 - `tags` are matched by normalized name; missing tags are created automatically
 - `pdfPath` must point to an existing PDF inside a Trusted Folder or one of its subfolders; failures become warnings and do not abort paper creation
@@ -566,6 +754,61 @@ curl -X POST http://127.0.0.1:29467/api/v1/papers \
   -H "Content-Type: application/json" \
   -d '{"title":"A Brief History of Time"}'
 ```
+
+## `PUT /papers/{uuid}/pdf`
+
+Uploads raw PDF bytes to an existing paper.
+
+### Availability
+
+- The endpoint path is `PUT /api/v1/papers/{uuid}/pdf`
+- It is intended for localhost callers only
+- Treat `pdf-upload` in `/status.capabilities` as the source of truth for whether the endpoint is usable
+- If write access is disabled, the endpoint returns `403`
+
+### Request
+
+```http
+PUT /api/v1/papers/{uuid}/pdf
+Content-Type: application/pdf
+```
+
+Request body: raw PDF bytes.
+
+Optional query parameter:
+
+| Parameter | Required | Type | Default | Description |
+| --- | --- | --- | --- | --- |
+| `force` | No | `boolean` | `false` | When `true`, bypasses the existing-PDF conflict check |
+
+### Successful response
+
+Status: `201 Created`
+
+```json
+{
+  "reason": "uploaded"
+}
+```
+
+### Error responses
+
+| Status | Typical payload | Meaning |
+| --- | --- | --- |
+| `400` | `{"error":"Content-Type must be application/pdf"}` | Wrong or missing content type |
+| `400` | `{"error":"Invalid PDF payload"}` | Body did not look like a PDF |
+| `403` | `{"error":"API is in read-only mode"}` | `Read-Only Mode` is still on |
+| `404` | `{"error":"Not found"}` | Unknown paper or unknown path |
+| `409` | `{"error":"PDF already attached"}` | The paper already has a PDF and `force=true` was not supplied |
+| `413` | `{"error":"Payload too large"}` | The PDF body exceeded the upload limit |
+| `503` | `{"reason":"not-configured"}` | No usable PDF upload destination is currently configured |
+| `500` | `{"error":"..."}` | Upload failed unexpectedly |
+
+### Behavioral notes
+
+- the request body must be raw bytes and begin with `%PDF-`
+- the current upload limit for this route is `200000000` bytes
+- a successful upload updates the paper's stored PDF bookmark and may trigger a background refresh
 
 ## `GET /plugins/{name}/...`
 
@@ -615,16 +858,18 @@ This is why hosting your plugin page under `/plugins/{name}/...` is the simplest
 
 Advanced note:
 
-- the server allows `GET, POST, OPTIONS`
+- the server allows `GET, POST, PUT, OPTIONS`
 - the CORS allowlist can be extended with the `citationBridgeAllowedOrigins` user-defaults override when needed for advanced integrations
 
 ## Request size limit
 
-The total HTTP request size is limited to `262144` bytes (`256 KiB`), including headers and body.
+For most routes, the total HTTP request size is limited to `262144` bytes (`256 KiB`), including headers and body.
+
+`PUT /api/v1/papers/{uuid}/pdf` has a larger PDF body limit of `200000000` bytes.
 
 ## Error examples
 
-### Invalid UUID
+### Invalid paper path segment
 
 ```bash
 curl http://127.0.0.1:29467/api/v1/papers/not-a-uuid
@@ -632,7 +877,19 @@ curl http://127.0.0.1:29467/api/v1/papers/not-a-uuid
 
 ```json
 {
-  "error": "Invalid paper id"
+  "error": "Not found"
+}
+```
+
+### Missing metadata lookup key
+
+```bash
+curl http://127.0.0.1:29467/api/v1/metadata
+```
+
+```json
+{
+  "error": "Provide at least one of doi, arxivId, isbn, or title."
 }
 ```
 

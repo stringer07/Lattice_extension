@@ -127,6 +127,24 @@ export async function fetchPaperSnapshot(id) {
   return requestJson(`/papers/${encodeURIComponent(id)}`);
 }
 
+export async function getCollections() {
+  return requestJson("/collections");
+}
+
+export async function getTags() {
+  return requestJson("/tags");
+}
+
+export async function lookupMetadata(params) {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value) {
+      query.set(key, value);
+    }
+  }
+  return requestJson(`/metadata?${query.toString()}`);
+}
+
 export async function createPaper(body) {
   return requestJson("/papers", {
     method: "POST",
@@ -134,19 +152,37 @@ export async function createPaper(body) {
     body: JSON.stringify(body)
   });
 }
+
+export async function uploadPaperPdf(id, pdfBytes, { force = false } = {}) {
+  const suffix = force ? "?force=true" : "";
+  const response = await fetch(`/api/v1/papers/${encodeURIComponent(id)}/pdf${suffix}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/pdf" },
+    body: pdfBytes
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null);
+    throw new Error(payload?.error || payload?.reason || `${response.status} ${response.statusText}`);
+  }
+
+  return await response.json();
+}
 ```
 
 This is also the recommended default integration pattern.
 
 ## Handle capability-gated write access
 
-Do not assume `POST /api/v1/papers` is always available.
+Do not assume write routes are always available.
 
 Recommended pattern:
 
 1. call `/api/v1/status`
 2. inspect `capabilities`
-3. only show write UI or send write requests if `create-paper` is present
+3. only show create UI or send create requests if `create-paper` is present
+4. only show raw PDF upload UI if `pdf-upload` is present
+5. if you depend on duplicate strategy support and rich success payloads, check for `create-paper-v2`
 
 Example:
 
@@ -159,7 +195,19 @@ export async function getCapabilities() {
 export async function canCreatePapers() {
   return (await getCapabilities()).has("create-paper");
 }
+
+export async function canUploadPdfBytes() {
+  return (await getCapabilities()).has("pdf-upload");
+}
 ```
+
+## Build pickers and prefill flows from server data
+
+For write-oriented plugins, the public Local API already exposes the primitives you usually need:
+
+- call `/api/v1/collections` to populate collection pickers
+- call `/api/v1/tags` to populate tag pickers or autosuggest
+- call `/api/v1/metadata` with `doi`, `arxivId`, `isbn`, or `title` to prefill a create or replace form before writing
 
 ## Recommended development workflow
 
@@ -233,6 +281,7 @@ Important implications:
 - if your plugin only needs to open a paper in Lattice, synthesize `lattice://paper/{id}` from the paper `id`
 - if your plugin needs the actual filesystem PDF path, the current Local API does not expose it
 - `pdfPath` is currently an input field accepted by `POST /api/v1/papers`, not a field returned by `GET /api/v1/papers/{id}`
+- raw PDF byte upload is a separate `PUT /api/v1/papers/{id}/pdf` flow gated by `pdf-upload`; it is not part of the paper-detail payload
 
 ## What not to rely on
 
@@ -256,6 +305,8 @@ They are not. The Local API is currently optimized for citation workflows, light
 - If static files load but API requests fail, verify that the configured port in Lattice still matches the URL being used
 - If `POST /api/v1/papers` returns `403`, ask the user to turn `Read-Only Mode` off
 - If paper creation succeeds but `pdfAttached` is `false`, inspect the `warnings` array for Trusted Folder or PDF validation failures
+- If `PUT /api/v1/papers/{id}/pdf` returns `409`, decide whether your UI should retry with `?force=true`
+- If `PUT /api/v1/papers/{id}/pdf` returns `503`, ask the user to configure a usable PDF upload destination first
 - If the host application caches an entry URL, changing the Local API port usually requires re-registration or reinstallation
 
 ## Related documents

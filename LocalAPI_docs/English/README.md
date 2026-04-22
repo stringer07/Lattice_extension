@@ -17,15 +17,20 @@ This documentation is written for external developers and focuses on the practic
 
 This English version is the primary documentation set.
 
+This documentation set intentionally covers the public `/api/v1` API and `/plugins/{name}/...` static hosting surface. It does not document browser-extension-specific internal routes.
+
 ## Capability Overview
 
 | Capability | Description |
 | --- | --- |
-| Local health check | Check whether the Local API is available, which API version is active, the current Lattice version, and the capability list |
+| Local health check | Check whether the Local API is available, which API version is active, the current Lattice version, capability list, and current localhost base URL |
 | Paper search | Search papers by title, author, venue/source, citekey, or year |
 | Single-paper detail | Fetch detailed citation metadata for one paper |
+| Metadata lookup | Resolve metadata by DOI, arXiv ID, ISBN, or title before creating or updating a paper |
+| Collections and tags directory | Fetch assignable collections and tags for write UIs |
 | CSL-JSON output | The paper detail response includes a `cslItem` ready for citeproc-style processors |
-| Paper creation | Create a paper with metadata, optional collection/tag assignment, optional PDF attachment, and optional background enrichment when `create-paper` is present in `/status.capabilities` |
+| Paper creation | Create a paper with metadata, optional collection/tag assignment, optional PDF attachment, duplicate strategy, and optional background enrichment when `create-paper` is present in `/status.capabilities` |
+| PDF byte upload | Upload raw PDF bytes to an existing paper when `pdf-upload` is present in `/status.capabilities` |
 | Plugin static hosting | Serve local plugin front-end assets through `/plugins/{name}/...` |
 
 ## Scope and Boundaries
@@ -33,7 +38,8 @@ This English version is the primary documentation set.
 - This is a local API. It only listens on `127.0.0.1`.
 - It is intended for local scripts, automations, desktop companion tools, and plugin-style integrations such as Office, Raycast, or Obsidian.
 - All business endpoints live under `/api/v1`.
-- Write access is opt-in. `POST /api/v1/papers` is only usable when the user turns `Read-Only Mode` off in `Settings → Local API`. If the request includes `pdfPath`, the file must live inside a `Trusted Folders` entry or one of its subfolders.
+- This document set covers the public `/api/v1` business endpoints and `/plugins/{name}/...` static hosting only.
+- Write access is opt-in. `POST /api/v1/papers` is only usable when the user turns `Read-Only Mode` off in `Settings → Local API`. `PUT /api/v1/papers/{id}/pdf` additionally requires `pdf-upload` to be present in `/status.capabilities`. If a create request includes `pdfPath`, the file must live inside a `Trusted Folders` entry or one of its subfolders.
 - Read payloads are citation-oriented snapshots, not full exports of Lattice's internal `Paper` model.
 
 Fields intentionally not exposed by the current read endpoints include:
@@ -70,6 +76,8 @@ Assuming your Local API is running on the default port `29467`:
 
 ```bash
 curl http://127.0.0.1:29467/api/v1/status
+curl "http://127.0.0.1:29467/api/v1/metadata?doi=10.48550/arXiv.1706.03762"
+curl http://127.0.0.1:29467/api/v1/collections
 curl "http://127.0.0.1:29467/api/v1/search?q=transformer&limit=5"
 curl http://127.0.0.1:29467/api/v1/papers/550E8400-E29B-41D4-A716-446655440000
 curl -X POST http://127.0.0.1:29467/api/v1/papers \
@@ -85,4 +93,4 @@ curl -X POST http://127.0.0.1:29467/api/v1/papers \
 
 ## Existing External Extension References
 
-The repository's `Lattice_plugins/` directory contains external extension assets built on top of the Local API, which can serve as references for packaging, static asset layout, and local hosting integration patterns.
+The repository's [word-addin](../word-addin/) and [raycast-extension](../raycast-extension/) directories contain external extension assets built on top of the public Local API, and can serve as references for packaging, static asset layout, and local hosting integration patterns.
