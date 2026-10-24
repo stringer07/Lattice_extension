@@ -3,12 +3,13 @@
 import { renderCitationsAndBibliography, getBuiltinStyles } from "../lib/csl-processor.js";
 import { createEmptyStore, loadStore, saveStore, setStoreStyle, upsertStoreItem } from "../lib/document-store.js";
 import { fetchPaperSnapshot, getBridgeStatus, searchLattice } from "../lib/lattice-client.js";
-import { applyRenderedCitations, collectCitationIds, hasRequiredWordApi, insertCitationPlaceholder, upsertBibliography } from "../lib/word-bridge.js";
+import { applyRenderedCitations, collectCitationGroups, hasRequiredWordApi, insertCitationPlaceholder, upsertBibliography } from "../lib/word-bridge.js";
 
 const RECENT_LIMIT = 3;
 const SEARCH_LIMIT = 12;
 
 const state = {
+  documentBusy: false,
   searchTimer: null,
   store: createEmptyStore()
 };
@@ -72,44 +73,78 @@ function bindEvents() {
     }, 300);
   });
 
-  elements.styleSelect.addEventListener("change", async () => {
-    const selectedId = elements.styleSelect.value;
-    if (selectedId === "__custom__") {
-      return;
+  elements.styleSelect.addEventListener("change", async () => withDocumentEdit(async () => {
+    try {
+      state.store = await loadStore();
+      const selectedId = elements.styleSelect.value;
+      if (selectedId === "__custom__") {
+        const currentStyle = state.store.style ?? {};
+        if (!currentStyle.customCSL) {
+          syncStyleSelectionFromStore();
+          setDocumentStatus("Load a custom CSL file first.", true);
+          return;
+        }
+
+        const customName = currentStyle.customName || "Custom CSL";
+        const nextStore = setStoreStyle(state.store, {
+          ...currentStyle,
+          type: "custom",
+          label: customName
+        });
+        state.store = await saveStore(nextStore);
+        renderCustomStyleLabel();
+        setDocumentStatus(`Selected ${customName}.`);
+        return;
+      }
+
+      const builtin = getBuiltinStyles().find((style) => style.id === selectedId) ?? getBuiltinStyles()[0];
+      const currentStyle = state.store.style ?? {};
+      const nextStore = setStoreStyle(state.store, {
+        type: "builtin",
+        builtinId: builtin.id,
+        label: builtin.label,
+        customName: currentStyle.customName ?? null,
+        customCSL: currentStyle.customCSL ?? null
+      });
+      state.store = await saveStore(nextStore);
+      renderCustomStyleLabel();
+      setDocumentStatus(`Selected ${builtin.label}.`);
+    } catch (error) {
+      syncStyleSelectionFromStore();
+      renderCustomStyleLabel();
+      setDocumentStatus(`Style change failed: ${formatError(error)}`, true);
     }
+  }));
 
-    const builtin = getBuiltinStyles().find((style) => style.id === selectedId) ?? getBuiltinStyles()[0];
-    state.store = setStoreStyle(state.store, {
-      type: "builtin",
-      builtinId: builtin.id,
-      label: builtin.label,
-      customName: null,
-      customCSL: null
-    });
-    await saveStore(state.store);
-    renderCustomStyleLabel();
-    setDocumentStatus(`Selected ${builtin.label}.`);
-  });
+  elements.customStyleInput.addEventListener("change", async (event) => withDocumentEdit(async () => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file) {
+        return;
+      }
 
-  elements.customStyleInput.addEventListener("change", async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
+      state.store = await loadStore();
+      const currentStyle = state.store.style ?? {};
+      const cslText = await file.text();
+      const nextStore = setStoreStyle(state.store, {
+        type: "custom",
+        builtinId: currentStyle.builtinId || "ieee",
+        label: file.name,
+        customName: file.name,
+        customCSL: cslText
+      });
+      state.store = await saveStore(nextStore);
+      elements.styleSelect.value = "__custom__";
+      renderCustomStyleLabel();
+      setDocumentStatus(`Loaded custom CSL: ${file.name}.`);
+    } catch (error) {
+      syncStyleSelectionFromStore();
+      renderCustomStyleLabel();
+      setDocumentStatus(`Custom CSL load failed: ${formatError(error)}`, true);
+    } finally {
+      event.target.value = "";
     }
-
-    const cslText = await file.text();
-    state.store = setStoreStyle(state.store, {
-      type: "custom",
-      builtinId: "ieee",
-      label: file.name,
-      customName: file.name,
-      customCSL: cslText
-    });
-    await saveStore(state.store);
-    elements.styleSelect.value = "__custom__";
-    renderCustomStyleLabel();
-    setDocumentStatus(`Loaded custom CSL: ${file.name}.`);
-  });
+  }));
 
   elements.updateButton.addEventListener("click", async () => {
     await updateDocument();
@@ -233,48 +268,67 @@ async function runSearch() {
   }
 }
 
-async function insertPaperCitation(paperId) {
+async function withDocumentEdit(action) {
+  if (state.documentBusy) return;
+  state.documentBusy = true;
+  elements.updateButton.disabled = true;
+  elements.styleSelect.disabled = true;
+  elements.customStyleInput.disabled = true;
   try {
-    setDocumentStatus("Fetching metadata…");
-    const snapshot = await fetchPaperSnapshot(paperId);
-    state.store = upsertStoreItem(state.store, snapshot);
-    await saveStore(state.store);
-    await insertCitationPlaceholder(snapshot);
-    setDocumentStatus(`Inserted [${snapshot.citekey}].`, false, true);
-  } catch (error) {
-    setDocumentStatus(`Insert failed: ${formatError(error)}`, true);
+    return await action();
+  } finally {
+    state.documentBusy = false;
+    elements.updateButton.disabled = elements.searchInput.disabled;
+    elements.styleSelect.disabled = false;
+    elements.customStyleInput.disabled = false;
   }
 }
 
+async function insertPaperCitation(paperId) {
+  return withDocumentEdit(async () => {
+    try {
+      setDocumentStatus("Fetching metadata…");
+      const snapshot = await fetchPaperSnapshot(paperId);
+      state.store = upsertStoreItem(await loadStore(), snapshot);
+      await saveStore(state.store);
+      await insertCitationPlaceholder(snapshot);
+      setDocumentStatus(`Inserted [${snapshot.citekey}].`, false, true);
+    } catch (error) {
+      setDocumentStatus(`Insert failed: ${formatError(error)}`, true);
+    }
+  });
+}
+
 async function updateDocument() {
-  try {
-    setDocumentStatus("Scanning for citations…");
-    let store = await loadStore();
-    const citationIds = await collectCitationIds();
+  return withDocumentEdit(async () => {
+    try {
+      setDocumentStatus("Scanning for citations…");
+      let store = await loadStore();
+      const citationGroups = await collectCitationGroups(store);
+      const groupIds = citationGroups.map((group) => group.citationIds);
+      const citationIds = groupIds.flat();
 
-    if (!citationIds.length) {
-      setDocumentStatus("No Lattice citations found in this document.", true);
-      return;
-    }
-
-    const missingIds = [...new Set(citationIds.filter((id) => !store.items[id]))];
-    if (missingIds.length) {
-      setDocumentStatus("Hydrating missing metadata…");
-      for (const id of missingIds) {
-        const snapshot = await fetchPaperSnapshot(id);
-        store = upsertStoreItem(store, snapshot);
+      const missingIds = [...new Set(citationIds.filter((id) => !store.items[id]))];
+      if (missingIds.length) {
+        setDocumentStatus("Hydrating missing metadata…");
+        for (const id of missingIds) {
+          const snapshot = await fetchPaperSnapshot(id);
+          store = upsertStoreItem(store, snapshot);
+        }
+        store = await saveStore(store);
       }
-      store = await saveStore(store);
-    }
 
-    const rendered = await renderCitationsAndBibliography(store, citationIds);
-    await applyRenderedCitations(rendered.renderedCitations);
-    await upsertBibliography(rendered.bibliographyText);
-    state.store = store;
-    setDocumentStatus("Citations and bibliography updated.", false, true);
-  } catch (error) {
-    setDocumentStatus(`Update failed: ${formatError(error)}`, true);
-  }
+      const rendered = await renderCitationsAndBibliography(store, groupIds);
+      store = await applyRenderedCitations(rendered, citationGroups, store);
+      await upsertBibliography(rendered.bibliographyText);
+      state.store = store;
+      setDocumentStatus(citationIds.length
+        ? "Citations and bibliography updated."
+        : "No Lattice citations remain. Bibliography cleared.", false, true);
+    } catch (error) {
+      setDocumentStatus(`Update failed: ${formatError(error)}`, true);
+    }
+  });
 }
 
 function renderEmptyState(message) {

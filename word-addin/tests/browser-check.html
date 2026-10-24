@@ -1,0 +1,86 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: LicenseRef-PolyForm-Shield-1.0.0 -->
+<!-- Copyright (c) 2026 The Lattice Project Contributors -->
+<html lang="en">
+<meta charset="utf-8">
+<title>Word citation group rendering check</title>
+<style>
+  body { font: 16px system-ui; max-width: 840px; margin: 36px auto; color: #222; }
+  h1 { font-size: 25px; }
+  table { width: 100%; border-collapse: collapse; margin: 24px 0; }
+  th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+  pre { white-space: pre-wrap; font: 13px system-ui; }
+  #result { font-weight: 600; }
+</style>
+<h1>Word citation groups — CSL rendering</h1>
+<p>Each row is one citation group, rendered by the bundled citeproc-js engine.</p>
+<table>
+  <thead><tr><th>Style / case</th><th>Rendered group</th></tr></thead>
+  <tbody id="examples"></tbody>
+</table>
+<h2>Bibliography (all 12 papers retained)</h2>
+<pre id="bibliography"></pre>
+<p id="result">Running…</p>
+<script src="../web/vendor/citeproc/citeproc.js"></script>
+<script type="module">
+  import { renderCitationsAndBibliography } from "../web/lib/csl-processor.js";
+  import { createEmptyStore, loadStore, saveStore } from "../web/lib/document-store.js";
+  function example(label, actual, expected) {
+    if (actual !== expected) throw new Error(`${label}: expected ${expected}, received ${actual}`);
+    const row = document.createElement("tr");
+    for (const text of [label, actual]) {
+      const cell = document.createElement("td");
+      cell.textContent = text;
+      row.append(cell);
+    }
+    document.getElementById("examples").append(row);
+  }
+  try {
+    const items = Object.fromEntries(Array.from({ length: 12 }, (_, i) => {
+      const id = `p${i + 1}`;
+      return [id, { cslItem: {
+        id, type: "article-journal", title: `Paper ${i + 1}: Science & Evidence`,
+        author: [{ family: `Author${String(i + 1).padStart(2, "0")}` }],
+        issued: { "date-parts": [[2020]] }, "container-title": "Journal"
+      } }];
+    }));
+    const initial = Object.keys(items).map((id) => [id]);
+    const numeric = await renderCitationsAndBibliography({ items, style: { builtinId: "ieee" } }, [...initial, ["p8", "p6", "p4", "p12"]]);
+    example("Built-in IEEE: 8, 6, 4, 12", numeric.renderedCitations.at(-1), "[4], [6], [8], [12]");
+    const customCSL = await (await fetch("./fixtures/numeric-ranges.csl")).text();
+    const style = { type: "custom", customCSL };
+    const ranges = await renderCitationsAndBibliography({ items, style }, [...initial, ["p4", "p2", "p1", "p3", "p6"]]);
+    example("CSL with collapse: 1, 2, 3, 4, 6", ranges.renderedCitations.at(-1), "[1–4, 6]");
+    const plain = await renderCitationsAndBibliography({ items, style: {
+      ...style, customCSL: customCSL.replace(' collapse="citation-number"', "")
+    } }, [...initial, ["p1", "p2", "p3", "p4", "p6"]]);
+    example("Same CSL without collapse", plain.renderedCitations.at(-1), "[1, 2, 3, 4, 6]");
+    const gaps = await renderCitationsAndBibliography({ items, style }, [...initial, ["p1", "p3", "p6"]]);
+    example("Nonconsecutive numbers", gaps.renderedCitations.at(-1), "[1, 3, 6]");
+    const apa = await renderCitationsAndBibliography({ items, style: { builtinId: "apa" } }, [["p8", "p6", "p4"]]);
+    example("APA: CSL sorting and punctuation", apa.renderedCitations[0], "(Author04, 2020; Author06, 2020; Author08, 2020)");
+    if ((ranges.bibliographyText.match(/Paper /g) || []).length !== 12) throw new Error("Hidden members were lost");
+    document.getElementById("bibliography").textContent = ranges.bibliographyText;
+    if (!ranges.bibliographyText.includes("Science & Evidence")) throw new Error("Entity decoding failed");
+    const empty = await renderCitationsAndBibliography({ items }, []);
+    if (empty.bibliographyText !== "") throw new Error("Empty document has a bibliography");
+
+    // Real DOMParser round-trip for the document XML; only Word's storage is mocked.
+    const parts = [];
+    globalThis.Word = { run: (fn) => fn({ sync: async () => {}, document: { customXmlParts: {
+      getByNamespace: () => ({ items: parts.filter((part) => !part.deleted), load() {} }),
+      add(xml) { parts.push({ getXml: () => ({ value: xml }), delete() { this.deleted = true; } }); }
+    } } }) };
+    const store = { ...createEmptyStore(), items, style, citationGroups: {
+      "7907cf27-3cdc-4121-b2c1-f07f0878a2cc": ["p1", "p2", "p3", "p4", "p6"]
+    } };
+    await saveStore(store);
+    const loaded = await loadStore();
+    if (JSON.stringify(loaded.citationGroups) !== JSON.stringify(store.citationGroups)) throw new Error("XML group round-trip failed");
+    if (loaded.items.p1.cslItem.title !== items.p1.cslItem.title) throw new Error("XML entity round-trip failed");
+    document.getElementById("result").textContent = "PASS — CSL ranges, noncollapsing styles, APA, hidden members, XML persistence, empty bibliography";
+  } catch (error) {
+    document.getElementById("result").textContent = `FAIL — ${error.stack}`;
+  }
+</script>
+</html>

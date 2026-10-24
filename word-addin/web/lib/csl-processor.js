@@ -26,7 +26,13 @@ export function getBuiltinStyles() {
   return builtinStyles.map((style) => ({ ...style }));
 }
 
-export async function renderCitationsAndBibliography(store, citationIds) {
+export async function renderCitationsAndBibliography(store, citationGroups) {
+  citationGroups = citationGroups.map((group) => [...new Set(group)]);
+  const citationIds = citationGroups.flat();
+  if (!citationIds.length) {
+    return { citationGroups: [], renderedCitations: [], bibliographyText: "" };
+  }
+
   if (!globalThis.CSL) {
     throw new Error("citeproc-js failed to load.");
   }
@@ -64,15 +70,24 @@ export async function renderCitationsAndBibliography(store, citationIds) {
     styleMarkup
   );
   processor.setOutputFormat("text");
-  processor.updateItems(uniqueCitationIds);
+  const bibliographyIds = processor.updateItems(uniqueCitationIds);
 
-  const renderedCitations = new Array(citationIds.length).fill("");
+  if (processor.opt.update_mode === CSL.NUMERIC) {
+    // updateItems returns CSL's bibliography order, including custom style sorting.
+    // Only reorder adjacent citations; occurrences separated by prose stay in place.
+    const order = new Map(bibliographyIds.map((id, index) => [id, index]));
+    citationGroups = citationGroups.map((group) => [...group].sort(
+      (a, b) => order.get(a) - order.get(b)
+    ));
+  }
+
+  const renderedCitations = new Array(citationGroups.length).fill("");
   const citationRegistry = [];
 
-  citationIds.forEach((id, index) => {
+  citationGroups.forEach((group, index) => {
     const citation = {
       citationID: `lattice-citation-${index}`,
-      citationItems: [{ id }],
+      citationItems: group.map((id) => ({ id })),
       properties: {
         noteIndex: styleSelection.noteStyle ? index + 1 : 0
       }
@@ -110,6 +125,7 @@ export async function renderCitationsAndBibliography(store, citationIds) {
   ].join("\n");
 
   return {
+    citationGroups,
     bibliographyText,
     renderedCitations
   };

@@ -14,6 +14,7 @@ export function createEmptyStore() {
       customCSL: null
     },
     items: {},
+    citationGroups: {},
     updatedAt: new Date().toISOString()
   };
 }
@@ -86,6 +87,8 @@ function normalizeStore(store) {
       customCSL: style.customCSL ?? null
     },
     items,
+    // Retain unused groups as well as snapshots so Word Undo can restore their tags.
+    citationGroups: normalized.citationGroups ?? {},
     updatedAt: normalized.updatedAt ?? new Date().toISOString()
   };
 }

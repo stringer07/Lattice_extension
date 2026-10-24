@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "word-addin",
+  "name": "Lattice Word Add-in",
+  "version": "1.1",
+  "kind": "word-addin",
+  "summary": "Search and cite Lattice papers from Microsoft Word.",
+  "platforms": [
+    "macOS"
+  ],
+  "minLatticeVersion": "1.2.0",
+  "homepage": "https://github.com/stringer07/Lattice_extension/tree/main/word-addin",
+  "include": [
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md",
+    "CHANGELOG.md",
+    "install.command",
+    "uninstall.command",
+    "manifest-template.xml",
+    "web/**"
+  ],
+  "requiredFiles": [
+    "web/taskpane/taskpane.html",
+    "web/taskpane/taskpane.js",
+    "web/lib/lattice-client.js"
+  ]
+}
